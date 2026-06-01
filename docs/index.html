@@ -3,18 +3,19 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#0f2a1d" />
-  <title>榊 収穫ログ</title>
+  <meta name="theme-color" content="#ffffff" />
+  <title>榊収穫管理</title>
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar__inner">
-      <div class="brand">
-        <div class="brand__title">榊 収穫ログ</div>
-        <div class="brand__sub" id="status">localStorage</div>
+  <header class="top">
+    <div class="top__inner">
+      <div>
+        <div class="title">榊収穫管理</div>
+        <div class="sub" id="status">localStorage</div>
       </div>
-      <div class="topbar__actions">
+      <div class="top__actions">
+        <button class="btn" id="btnFetch" type="button">Sheets読込</button>
         <button class="btn" id="btnExportCsv" type="button">CSV出力</button>
         <button class="btn" id="btnExportJson" type="button">JSON出力</button>
         <label class="btn btn--ghost" for="fileImport">JSON取込</label>
@@ -26,84 +27,109 @@
   <main class="wrap">
     <section class="card">
       <div class="card__hd">
-        <h2>新規記録</h2>
-        <div class="muted">必須: 日付 / 数量</div>
+        <h2>新規入力</h2>
+        <div class="hint">Sheets保存を優先（失敗時はlocalStorageに退避）</div>
       </div>
-      <form id="form" class="grid" autocomplete="off">
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+      <form id="form" class="form" autocomplete="off">
+        <div class="row">
+          <div class="field">
+            <label for="date">日付</label>
+            <input id="date" name="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="field">圃場</label>
+            <select id="field" name="field" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3上">3上</option>
+              <option value="3下">3下</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="field">
+            <label for="grade">規格</label>
+            <select id="grade" name="grade" required>
+              <option value="40センチ">40センチ</option>
+              <option value="45センチ">45センチ</option>
+              <option value="大枝">大枝</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="user">入力者</label>
+            <select id="user" name="user" required>
+              <option value="河合">河合</option>
+              <option value="担当者">担当者</option>
+            </select>
+            <div class="mini">
+              <button class="link" id="btnRenameOther" type="button">「担当者」の名称変更</button>
+            </div>
+          </div>
+        </div>
+
         <div class="field">
-          <label for="date">日付</label>
-          <input id="date" name="date" type="date" required />
+          <div class="labelRow">
+            <label>重量一覧（kg）</label>
+            <button class="btn btn--ghost btn--sm" id="btnAddWeight" type="button">＋追加</button>
+          </div>
+          <div id="weights" class="weights"></div>
+          <div class="total">
+            <div class="total__label">合計重量</div>
+            <div class="total__value"><span id="totalWeight">0</span> kg</div>
+          </div>
         </div>
+
         <div class="field">
-          <label for="place">場所</label>
-          <input id="place" name="place" type="text" placeholder="例: 畑A" maxlength="60" />
+          <label for="memo">メモ</label>
+          <textarea id="memo" name="memo" rows="2" placeholder="例: 葉が小さめ"></textarea>
         </div>
-        <div class="field">
-          <label for="qty">数量</label>
-          <input id="qty" name="qty" type="number" inputmode="decimal" step="0.01" min="0" required />
-        </div>
-        <div class="field">
-          <label for="unit">単位</label>
-          <select id="unit" name="unit">
-            <option value="束">束</option>
-            <option value="本">本</option>
-            <option value="kg">kg</option>
-            <option value="箱">箱</option>
-            <option value="その他">その他</option>
-          </select>
-        </div>
-        <div class="field field--wide">
-          <label for="note">メモ</label>
-          <input id="note" name="note" type="text" placeholder="例: 形が良い" maxlength="120" />
-        </div>
+
         <div class="actions">
-          <button class="btn btn--primary" id="btnSave" type="submit">追加</button>
-          <button class="btn btn--ghost" id="btnReset" type="reset">リセット</button>
+          <button class="btn btn--primary" type="submit">保存</button>
+          <button class="btn" type="reset">リセット</button>
+          <button class="btn btn--ghost" id="btnSettings" type="button">設定</button>
         </div>
       </form>
     </section>
 
     <section class="card">
       <div class="card__hd">
-        <h2>一覧・集計</h2>
-        <div class="filters">
-          <div class="field">
-            <label for="month">月</label>
-            <input id="month" type="month" />
-          </div>
-          <div class="field">
-            <label for="q">検索</label>
-            <input id="q" type="search" placeholder="場所/メモ" />
-          </div>
+        <h2>ログ一覧</h2>
+        <div class="hint">
+          <span id="logSource">localStorage表示</span>
+        </div>
+      </div>
+
+      <div class="filters">
+        <div class="field">
+          <label for="month">月</label>
+          <input id="month" type="month" />
+        </div>
+        <div class="field">
+          <label for="q">検索</label>
+          <input id="q" type="search" placeholder="圃場/規格/入力者/メモ" />
         </div>
       </div>
 
       <div class="summary" id="summary"></div>
-
-      <div class="tableWrap">
-        <table class="table" aria-label="収穫記録一覧">
-          <thead>
-            <tr>
-              <th>日付</th>
-              <th>場所</th>
-              <th class="num">数量</th>
-              <th>単位</th>
-              <th>メモ</th>
-              <th class="actionsCol">操作</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-      </div>
+      <div id="list" class="list" aria-label="収穫ログ一覧"></div>
     </section>
 
     <section class="card card--danger">
       <div class="card__hd">
         <h2>危険操作</h2>
-        <div class="muted">取り消しできません</div>
+        <div class="hint">取り消しできません</div>
       </div>
       <div class="actions">
-        <button class="btn btn--danger" id="btnClear" type="button">全データ削除</button>
+        <button class="btn btn--danger" id="btnClear" type="button">localStorage全削除</button>
       </div>
     </section>
   </main>
@@ -111,40 +137,90 @@
   <dialog id="dlgEdit" class="dialog">
     <form method="dialog" class="dialog__panel" id="editForm">
       <div class="dialog__hd">
-        <h3>編集</h3>
+        <h3>編集（localStorage）</h3>
         <button class="iconBtn" value="cancel" aria-label="閉じる" type="submit">×</button>
       </div>
-      <div class="grid">
-        <div class="field">
-          <label for="eDate">日付</label>
-          <input id="eDate" name="date" type="date" required />
+
+      <div class="dialog__bd">
+        <div class="row">
+          <div class="field">
+            <label for="eDate">日付</label>
+            <input id="eDate" name="date" type="date" required />
+          </div>
+          <div class="field">
+            <label for="eField">圃場</label>
+            <select id="eField" name="field" required>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3上">3上</option>
+              <option value="3下">3下</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+            </select>
+          </div>
         </div>
-        <div class="field">
-          <label for="ePlace">場所</label>
-          <input id="ePlace" name="place" type="text" maxlength="60" />
+
+        <div class="row">
+          <div class="field">
+            <label for="eGrade">規格</label>
+            <select id="eGrade" name="grade" required>
+              <option value="40センチ">40センチ</option>
+              <option value="45センチ">45センチ</option>
+              <option value="大枝">大枝</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="eUser">入力者</label>
+            <select id="eUser" name="user" required>
+              <option value="河合">河合</option>
+              <option value="担当者">担当者</option>
+            </select>
+          </div>
         </div>
+
         <div class="field">
-          <label for="eQty">数量</label>
-          <input id="eQty" name="qty" type="number" inputmode="decimal" step="0.01" min="0" required />
+          <div class="labelRow">
+            <label>重量一覧（kg）</label>
+            <button class="btn btn--ghost btn--sm" id="btnEAddWeight" type="button">＋追加</button>
+          </div>
+          <div id="eWeights" class="weights"></div>
+          <div class="total">
+            <div class="total__label">合計重量</div>
+            <div class="total__value"><span id="eTotalWeight">0</span> kg</div>
+          </div>
         </div>
+
         <div class="field">
-          <label for="eUnit">単位</label>
-          <select id="eUnit" name="unit">
-            <option value="束">束</option>
-            <option value="本">本</option>
-            <option value="kg">kg</option>
-            <option value="箱">箱</option>
-            <option value="その他">その他</option>
-          </select>
-        </div>
-        <div class="field field--wide">
-          <label for="eNote">メモ</label>
-          <input id="eNote" name="note" type="text" maxlength="120" />
+          <label for="eMemo">メモ</label>
+          <textarea id="eMemo" name="memo" rows="2"></textarea>
         </div>
       </div>
+
       <div class="dialog__ft">
         <button class="btn" value="cancel" type="submit">キャンセル</button>
         <button class="btn btn--primary" id="btnEditSave" value="ok" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgSettings" class="dialog">
+    <form method="dialog" class="dialog__panel" id="settingsForm">
+      <div class="dialog__hd">
+        <h3>設定</h3>
+        <button class="iconBtn" value="cancel" aria-label="閉じる" type="submit">×</button>
+      </div>
+      <div class="dialog__bd">
+        <div class="field">
+          <label for="endpoint">Apps Script WebアプリURL（任意）</label>
+          <input id="endpoint" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+          <div class="hint">未入力の場合は JavaScript内の `GAS_ENDPOINT` を使用します。</div>
+        </div>
+      </div>
+      <div class="dialog__ft">
+        <button class="btn" value="cancel" type="submit">閉じる</button>
+        <button class="btn btn--primary" value="ok" type="submit">保存</button>
       </div>
     </form>
   </dialog>
