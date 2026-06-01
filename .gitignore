@@ -1,0 +1,12 @@
+﻿# OS junk
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+
+# Node
+node_modules/
+
+# Build
+/dist/
