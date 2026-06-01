@@ -519,31 +519,65 @@
       return { ok: false, error: "GAS_ENDPOINT 未設定" };
     }
 
-    const res = await fetch(endpoint, {
+    const body = JSON.stringify(payload);
+
+    // NOTE:
+    // GitHub Pages → Apps Script では CORS / preflight が原因で失敗しやすい。
+    // application/json を避け、text/plain で JSON 文字列を送る（GAS側は e.postData.contents を読む）。
+    // text/plain は “simple request” 扱いになりやすく、OPTIONS preflight を回避できるケースが多い。
+    const req = {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body,
+    };
 
-    const text = await res.text();
+    console.groupCollapsed("[Sheets] POST", endpoint);
+    console.log("payload =", payload);
+    console.log("request =", req);
+
+    let res;
+    let text = "";
+    try {
+      res = await fetch(endpoint, req);
+      text = await res.text();
+      console.log("response.status =", res.status, res.statusText);
+      console.log("response.text =", text);
+    } catch (err) {
+      console.error("[Sheets] POST fetch error =", err);
+      console.groupEnd();
+      return { ok: false, error: `fetch error: ${String(err)}` };
+    }
+
+    console.groupEnd();
+
     const p = safeParseJSON(text);
-    if (!p.ok) return { ok: false, error: "レスポンスJSONが不正" };
+    if (!p.ok) {
+      return { ok: false, error: "レスポンスJSONが不正", httpStatus: res.status, rawText: text };
+    }
 
-    return p.value;
+    return { ...p.value, httpStatus: res.status, rawText: text };
   }
 
-  async function fetchFromSheets() {
+  async function fetchFromSheets(opts) {
     const endpoint = getEndpoint();
     if (!endpoint) {
       toast("warn", "Sheets URLが未設定です（設定から入力してください）");
       return;
     }
 
-    toast("warn", "Sheetsから読み込み中...");
+    const silent = Boolean(opts?.silent);
+    const expectId = String(opts?.expectId || "");
+
+    if (!silent) toast("warn", "Sheetsから読み込み中...");
 
     try {
+      console.groupCollapsed("[Sheets] GET", endpoint);
       const res = await fetch(endpoint, { method: "GET" });
       const text = await res.text();
+      console.log("response.status =", res.status, res.statusText);
+      console.log("response.text =", text);
+      console.groupEnd();
+
       const p = safeParseJSON(text);
       if (!p.ok) throw new Error("JSON parse failed");
       const v = p.value;
@@ -573,10 +607,18 @@
         })
         .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date));
 
-      toast("ok", `Sheets読み込み完了: ${sheetEntries.length}件`);
+      if (!silent) toast("ok", `Sheets読み込み完了: ${sheetEntries.length}件`);
       render();
+
+      if (expectId) {
+        const found = sheetEntries.some((e) => e.id === expectId);
+        if (!found) {
+          toast("warn", "保存後の確認: Sheets側に反映が見つかりませんでした（反映遅延/別シート/別URLの可能性）");
+        }
+      }
     } catch (err) {
       toast("err", `Sheets読み込み失敗: ${String(err)}`);
+      console.error("[Sheets] GET error =", err);
     }
   }
 
@@ -626,16 +668,19 @@
         setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
         updateTotal();
         // Sheets表示中でも新規は反映させたいので再取得はユーザー任せ
-        sheetEntries = null;
-        render();
+        sheetEntries = null;        render();
+
+        // 保存後にGETで再読み込みして反映確認（任意）
+        await fetchFromSheets({ silent: true, expectId: String(result.id || "") });
         return;
       }
-      throw new Error(String(result?.error || "GAS error"));
+      throw new Error(`GAS error: ${String(result?.error || "unknown")} / http=${String(result?.httpStatus ?? "")} / raw=${String(result?.rawText ?? "")}`);
     } catch (err) {
       // 失敗時はlocalStorageへ一時保存
       entries.push(entry);
       saveLocal();
       toast("err", `Sheets保存失敗 → localStorageに退避しました: ${String(err)}`);
+      console.error("[Sheets] save failed =", err);
       form.reset();
       resetFormDefaults();
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
@@ -755,3 +800,5 @@
 
   init();
 })();
+
+
