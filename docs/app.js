@@ -4,7 +4,7 @@
 
   // Apps Script WebアプリURL（あとで差し替え）
   // 例: const GAS_ENDPOINT = 'https://script.google.com/macros/s/XXXX/exec';
-  const GAS_ENDPOINT = "https://script.google.com/macros/s/REPLACE_ME/exec";
+  const GAS_ENDPOINT = "＜ここにApps Script WebアプリURLを貼る＞";
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
@@ -800,6 +800,7 @@
 
   init();
 })();
+
 
 
 
