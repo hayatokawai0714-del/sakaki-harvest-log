@@ -47,7 +47,9 @@ updated_at
 次のいずれかで Apps Script URL を設定します（秘密情報は不要です）。
 
 - 推奨: アプリの `設定` → 「Apps Script WebアプリURL」に貼り付け（端末ごとにlocalStorage保存）
-- もしくは: `docs/app.js` の `GAS_ENDPOINT` に直書き（固定運用向け）
+- もしくは: `docs/app.js` の `GAS_ENDPOINT` を **既定値** として設定（全端末で共通URLにしたい場合）
+
+※スマホでも `GAS_ENDPOINT` を設定していれば、端末ごとの設定が無くてもSheets保存できます。端末別に異なるURLを使いたい場合のみ `設定` で上書きしてください。
 
 ## 動作確認手順
 
@@ -70,3 +72,4 @@ updated_at
 
 ## GitHub Pages
 GitHub Pages を使う場合は、Pages の Source を `main` ブランチの `/docs` に設定してください。
+

@@ -4,7 +4,7 @@
 
   // Apps Script WebアプリURL（あとで差し替え）
   // 例: const GAS_ENDPOINT = 'https://script.google.com/macros/s/XXXX/exec';
-  const GAS_ENDPOINT = "";
+  const GAS_ENDPOINT = "https://script.google.com/macros/s/REPLACE_ME/exec";
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
@@ -656,10 +656,10 @@
 
     // まずSheets保存を試みる
     try {
-      toast("warn", "Sheetsへ保存中...");
+      toast("warn", "Sheetsへ保存中..." );
       const result = await postToSheets(buildPostPayload(entry));
       if (result?.ok) {
-        toast("ok", "Sheets保存しました");
+        toast("ok", "Sheets保存成功");
         // localStorageはバックアップとしても保存しておく（重複を避けるため id を保持）
         entries.push(entry);
         saveLocal();
@@ -679,7 +679,7 @@
       // 失敗時はlocalStorageへ一時保存
       entries.push(entry);
       saveLocal();
-      toast("err", `Sheets保存失敗 → localStorageに退避しました: ${String(err)}`);
+      toast("err", `Sheets保存失敗：${String(err)}（localStorageに退避）`);
       console.error("[Sheets] save failed =", err);
       form.reset();
       resetFormDefaults();
@@ -800,5 +800,6 @@
 
   init();
 })();
+
 
 
