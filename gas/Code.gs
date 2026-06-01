@@ -7,6 +7,18 @@
  */
 
 const SHEET_NAME = "シート1";
+const HEADERS = [
+  "id",
+  "date",
+  "field",
+  "grade",
+  "weights",
+  "total_weight",
+  "user",
+  "memo",
+  "created_at",
+  "updated_at",
+];
 
 function jsonResponse(obj) {
   return ContentService
@@ -19,6 +31,38 @@ function getSheet_() {
   const sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) throw new Error(`Sheet not found: ${SHEET_NAME}`);
   return sh;
+}
+
+function ensureHeaderRow_(sh) {
+  const lastRow = sh.getLastRow();
+
+  // シートが空ならヘッダー作成
+  if (lastRow === 0) {
+    Logger.log("ensureHeaderRow_: sheet is empty -> create header");
+    sh.appendRow(HEADERS);
+    return;
+  }
+
+  // 1行目を確認
+  const firstRow = sh.getRange(1, 1, 1, Math.max(sh.getLastColumn(), HEADERS.length)).getValues()[0];
+  const normalized = firstRow.map((v) => String(v || "").trim());
+
+  const hasAnyHeader = normalized.some((v) => v !== "");
+  const matches = HEADERS.every((h, i) => (normalized[i] || "") === h);
+
+  if (matches) return;
+
+  // 1行目が空ならヘッダーを上書き
+  if (!hasAnyHeader) {
+    Logger.log("ensureHeaderRow_: header row is empty -> set header");
+    sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    return;
+  }
+
+  // 1行目にデータが入っている（ヘッダーではない）場合は、1行目にヘッダー行を挿入
+  Logger.log("ensureHeaderRow_: header missing -> insert header row at 1");
+  sh.insertRowBefore(1);
+  sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
 }
 
 function safeParse_(text) {
@@ -83,12 +127,21 @@ function normalizeEntry_(payload) {
 function doPost(e) {
   try {
     const body = e && e.postData && e.postData.contents ? e.postData.contents : "";
+    Logger.log(`doPost: start, body.length=${String(body).length}`);
+
     const parsed = safeParse_(body);
-    if (!parsed.ok) return jsonResponse({ ok: false, error: "Invalid JSON" });
+    if (!parsed.ok) {
+      Logger.log(`doPost: invalid json: ${parsed.error}`);
+      return jsonResponse({ ok: false, error: "Invalid JSON" });
+    }
 
     const entry = normalizeEntry_(parsed.value);
+    Logger.log(`doPost: normalized id=${entry.id} date=${entry.date} field=${entry.field} grade=${entry.grade} total=${entry.total_weight}`);
 
     const sh = getSheet_();
+    ensureHeaderRow_(sh);
+
+    Logger.log("doPost: appendRow begin");
     sh.appendRow([
       entry.id,
       entry.date,
@@ -101,9 +154,11 @@ function doPost(e) {
       entry.created_at,
       entry.updated_at,
     ]);
+    Logger.log("doPost: appendRow done");
 
     return jsonResponse({ ok: true, id: entry.id });
   } catch (err) {
+    Logger.log(`doPost: error: ${String(err)}`);
     return jsonResponse({ ok: false, error: String(err) });
   }
 }
@@ -111,12 +166,13 @@ function doPost(e) {
 function doGet(e) {
   try {
     const sh = getSheet_();
+    ensureHeaderRow_(sh);
+
     const values = sh.getDataRange().getValues();
     if (values.length <= 1) return jsonResponse({ ok: true, entries: [] });
 
-    const header = values[0].map(String);
+    const header = values[0].map((v) => String(v || "").trim());
     const rows = values.slice(1);
-
     const idx = (name) => header.indexOf(name);
 
     const entries = rows
@@ -144,6 +200,7 @@ function doGet(e) {
 
     return jsonResponse({ ok: true, entries });
   } catch (err) {
+    Logger.log(`doGet: error: ${String(err)}`);
     return jsonResponse({ ok: false, error: String(err) });
   }
 }
