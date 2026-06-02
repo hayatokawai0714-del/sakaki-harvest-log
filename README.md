@@ -51,6 +51,11 @@ updated_at
 
 ※スマホでも `GAS_ENDPOINT` を設定していれば、端末ごとの設定が無くてもSheets保存できます。端末別に異なるURLを使いたい場合のみ `設定` で上書きしてください。
 
+### iPhone Safari 対策
+- iPhone Safari では `fetch` が `TypeError: Load failed` になりやすいため、保存は hidden iframe + form 送信で行います。
+- `docs/app.js` は `payload` hidden input を使って Apps Script に送信します。
+- Apps Script 側の `doPost` は `e.parameter.payload` と `e.postData.contents` の両方に対応しています。
+
 ## 動作確認手順
 
 ### A. Sheets保存の確認

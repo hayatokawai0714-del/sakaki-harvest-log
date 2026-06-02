@@ -73,6 +73,26 @@ function safeParse_(text) {
   }
 }
 
+function parsePayload_(e) {
+  const parameterPayload = e && e.parameter && e.parameter.payload ? String(e.parameter.payload) : "";
+  if (parameterPayload) {
+    Logger.log(`parsePayload_: using e.parameter.payload length=${parameterPayload.length}`);
+    const parsed = safeParse_(parameterPayload);
+    if (parsed.ok) return parsed;
+    return { ok: false, error: `parameter.payload parse error: ${parsed.error}` };
+  }
+
+  const body = e && e.postData && e.postData.contents ? String(e.postData.contents) : "";
+  if (body) {
+    Logger.log(`parsePayload_: using e.postData.contents length=${body.length}`);
+    const parsed = safeParse_(body);
+    if (parsed.ok) return parsed;
+    return { ok: false, error: `postData.contents parse error: ${parsed.error}` };
+  }
+
+  return { ok: false, error: "No payload found" };
+}
+
 function uuid_() {
   // 依存不要の簡易ID（ユニーク性は十分）
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -126,10 +146,8 @@ function normalizeEntry_(payload) {
 
 function doPost(e) {
   try {
-    const body = e && e.postData && e.postData.contents ? e.postData.contents : "";
-    Logger.log(`doPost: start, body.length=${String(body).length}`);
-
-    const parsed = safeParse_(body);
+    Logger.log("doPost: start");
+    const parsed = parsePayload_(e);
     if (!parsed.ok) {
       Logger.log(`doPost: invalid json: ${parsed.error}`);
       return jsonResponse({ ok: false, error: "Invalid JSON" });

@@ -61,6 +61,14 @@
   let sheetEntries = null;
   /** @type {string | null} */
   let editingId = null;
+  /** @type {HTMLIFrameElement | null} */
+  let submitFrame = null;
+  /** @type {HTMLFormElement | null} */
+  let submitProxyForm = null;
+  /** @type {HTMLInputElement | null} */
+  let submitPayloadInput = null;
+  /** @type {HTMLInputElement | null} */
+  let submitReturnInput = null;
 
   function nowISO() {
     return new Date().toISOString();
@@ -312,6 +320,48 @@
     statusEl.textContent = ep ? `Sheets: 設定あり / local: ${entries.length}件 / ${endpointLabel}` : `Sheets: 未設定 / local: ${entries.length}件 / ${endpointLabel}`;
   }
 
+  function ensureSubmitProxy() {
+    if (!submitFrame) {
+      submitFrame = document.createElement("iframe");
+      submitFrame.name = "sakakiSheetsSink";
+      submitFrame.title = "sakakiSheetsSink";
+      submitFrame.className = "sr-only";
+      submitFrame.style.display = "none";
+      document.body.appendChild(submitFrame);
+    }
+
+    if (!submitProxyForm) {
+      submitProxyForm = document.createElement("form");
+      submitProxyForm.method = "POST";
+      submitProxyForm.target = "sakakiSheetsSink";
+      submitProxyForm.style.display = "none";
+      submitProxyForm.enctype = "application/x-www-form-urlencoded";
+      submitProxyForm.acceptCharset = "UTF-8";
+      document.body.appendChild(submitProxyForm);
+
+      submitReturnInput = document.createElement("input");
+      submitReturnInput.type = "hidden";
+      submitReturnInput.name = "returnMode";
+      submitReturnInput.value = "html";
+      submitProxyForm.appendChild(submitReturnInput);
+
+      submitPayloadInput = document.createElement("input");
+      submitPayloadInput.type = "hidden";
+      submitPayloadInput.name = "payload";
+      submitProxyForm.appendChild(submitPayloadInput);
+    }
+  }
+
+  function setTransportMessage(mode) {
+    toast("ok", `送信方式：${mode}`);
+    console.log("[Sheets] transport =", mode);
+  }
+
+  function detectSafariIOS() {
+    const ua = navigator.userAgent;
+    return /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
+  }
+
   function openEdit(id) {
     const e = entries.find((x) => x.id === id);
     if (!e) return;
@@ -520,12 +570,43 @@
       return { ok: false, error: "GAS_ENDPOINT 未設定" };
     }
 
+    const useFormTransport = detectSafariIOS() || true;
     const body = JSON.stringify(payload);
 
-    // NOTE:
-    // GitHub Pages → Apps Script では CORS / preflight が原因で失敗しやすい。
-    // application/json を避け、text/plain で JSON 文字列を送る（GAS側は e.postData.contents を読む）。
-    // text/plain は “simple request” 扱いになりやすく、OPTIONS preflight を回避できるケースが多い。
+    console.groupCollapsed("[Sheets] POST", endpoint);
+    console.log("payload =", payload);
+    console.log("userAgent =", navigator.userAgent);
+    console.log("transport =", useFormTransport ? "form" : "fetch");
+
+    if (useFormTransport) {
+      ensureSubmitProxy();
+      if (!submitProxyForm || !submitPayloadInput) {
+        console.groupEnd();
+        return { ok: false, error: "form送信の準備に失敗しました", transport: "form" };
+      }
+
+      submitProxyForm.action = endpoint;
+      submitPayloadInput.value = body;
+      console.log("form.action =", submitProxyForm.action);
+      console.log("form.payload.length =", submitPayloadInput.value.length);
+
+      try {
+        submitProxyForm.submit();
+      } catch (err) {
+        console.error("[Sheets] form submit error =", err);
+        console.groupEnd();
+        return { ok: false, error: `form submit error: ${String(err)}`, transport: "form" };
+      }
+
+      console.groupEnd();
+      return {
+        ok: true,
+        transport: "form",
+        message: "送信完了",
+        rawText: "",
+      };
+    }
+
     const req = {
       method: "POST",
       mode: "cors",
@@ -535,11 +616,6 @@
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body,
     };
-
-    console.groupCollapsed("[Sheets] POST", endpoint);
-    console.log("payload =", payload);
-    console.log("request =", req);
-    console.log("userAgent =", navigator.userAgent);
 
     let res;
     let text = "";
@@ -626,9 +702,11 @@
       console.log("[Sheets] GET endpoint =", endpoint);
       if (!silent) toast("ok", countMessage);
       render();
+      return { ok: true, count: sheetEntries.length, endpoint };
     } catch (err) {
       toast("err", `Sheets読み込み失敗: ${String(err)}`);
       console.error("[Sheets] GET error =", err);
+      return { ok: false, error: String(err), endpoint };
     }
   }
 
@@ -666,11 +744,14 @@
 
     // まずSheets保存を試みる
     try {
-      toast("warn", "Sheetsへ保存中..." );
+      const transportHint = detectSafariIOS() ? "form送信" : "form送信";
+      setTransportMessage(transportHint);
+      toast("warn", "Sheetsへ保存中...");
       const result = await postToSheets(buildPostPayload(entry));
       if (result?.ok) {
         toast("ok", "Sheets保存成功");
         console.log("[Sheets] POST response =", result);
+        toast("ok", `送信完了 / 送信方式：${result.transport || transportHint}`);
         toast("ok", `POSTレスポンス: ${JSON.stringify(result)}`);
         toast("ok", `endpoint: ${getEndpoint()}`);
         // localStorageはバックアップとしても保存しておく（重複を避けるため id を保持）
@@ -682,7 +763,14 @@
         updateTotal();
         sheetEntries = null;
         render();
-        await fetchFromSheets({ silent: false });
+        window.setTimeout(async () => {
+          const refreshResult = await fetchFromSheets({ silent: false });
+          if (refreshResult?.ok) {
+            toast("ok", `Sheets再読込成功: ${refreshResult.count}件`);
+          } else {
+            toast("warn", "送信しました。シートを確認してください");
+          }
+        }, 1200);
         return;
       }
       throw new Error(`GAS error: ${String(result?.error || "unknown")} / http=${String(result?.httpStatus ?? "")} / raw=${String(result?.rawText ?? "")}`);
