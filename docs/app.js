@@ -672,7 +672,14 @@
       const v = p.value;
       if (!v?.ok) throw new Error(String(v?.error || "GAS error"));
       console.log("[Sheets] GET parsed JSON =", v);
-      toast("ok", `GET結果サンプル: ${JSON.stringify((v.sample || v.records || v.entries || []).slice(0, 1))}`);
+      const sampleList = (v.sample || v.records || v.entries || []).slice(0, 1);
+      const contextBits = [
+        v.spreadsheetId ? `spreadsheetId=${v.spreadsheetId}` : "",
+        v.sheetName ? `sheetName=${v.sheetName}` : "",
+        Number.isFinite(Number(v.lastRow)) ? `lastRow=${v.lastRow}` : "",
+        Number.isFinite(Number(v.lastColumn)) ? `lastColumn=${v.lastColumn}` : "",
+      ].filter(Boolean);
+      toast("ok", `GET結果サンプル: ${JSON.stringify(sampleList)}${contextBits.length ? ` / ${contextBits.join(" / ")}` : ""}`);
 
       const arr = Array.isArray(v.records) ? v.records : (Array.isArray(v.entries) ? v.entries : []);
       sheetEntries = arr
@@ -702,9 +709,23 @@
       console.log("[Sheets] GET count =", sheetEntries.length);
       console.log("[Sheets] GET endpoint =", endpoint);
       console.log("[Sheets] GET sample =", sheetEntries.slice(0, 3));
+      console.log("[Sheets] GET context =", {
+        spreadsheetId: v.spreadsheetId,
+        sheetName: v.sheetName,
+        lastRow: v.lastRow,
+        lastColumn: v.lastColumn,
+      });
       if (!silent) toast("ok", countMessage);
       render();
-      return { ok: true, count: sheetEntries.length, endpoint };
+      return {
+        ok: true,
+        count: sheetEntries.length,
+        endpoint,
+        spreadsheetId: v.spreadsheetId,
+        sheetName: v.sheetName,
+        lastRow: v.lastRow,
+        lastColumn: v.lastColumn,
+      };
     } catch (err) {
       toast("err", `Sheets読み込み失敗: ${String(err)}`);
       console.error("[Sheets] GET error =", err);

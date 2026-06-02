@@ -6,6 +6,7 @@
  * id,date,field,grade,weights,total_weight,user,memo,created_at,updated_at
  */
 
+const SPREADSHEET_ID = "ここに榊収穫管理DBのスプレッドシートIDを入れる";
 const SHEET_NAME = "シート1";
 const HEADERS = [
   "id",
@@ -27,7 +28,7 @@ function jsonResponse(obj) {
 }
 
 function getSheet_() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   const sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) throw new Error(`Sheet not found: ${SHEET_NAME}`);
   return sh;
@@ -63,6 +64,15 @@ function ensureHeaderRow_(sh) {
   Logger.log("ensureHeaderRow_: header missing -> insert header row at 1");
   sh.insertRowBefore(1);
   sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+}
+
+function buildContext_(sh) {
+  return {
+    spreadsheetId: SPREADSHEET_ID,
+    sheetName: SHEET_NAME,
+    lastRow: sh.getLastRow(),
+    lastColumn: sh.getLastColumn(),
+  };
 }
 
 function safeParse_(text) {
@@ -172,9 +182,11 @@ function doPost(e) {
       entry.created_at,
       entry.updated_at,
     ]);
-    Logger.log("doPost: appendRow done");
+    const appendedRow = sh.getLastRow();
+    const response = { ok: true, id: entry.id, appendedRow, ...buildContext_(sh) };
+    Logger.log(`doPost: response=${JSON.stringify(response)}`);
 
-    return jsonResponse({ ok: true, id: entry.id });
+    return jsonResponse(response);
   } catch (err) {
     Logger.log(`doPost: error: ${String(err)}`);
     return jsonResponse({ ok: false, error: String(err) });
@@ -229,6 +241,7 @@ function doGet(e) {
       records,
       count: records.length,
       sample: records.slice(0, 3),
+      ...buildContext_(sh),
     };
     Logger.log(`doGet: records.length=${records.length}`);
     Logger.log(`doGet: response=${JSON.stringify(response)}`);

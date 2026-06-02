@@ -34,6 +34,7 @@ updated_at
 ### 2) Apps Script を作成
 - スプレッドシートで「拡張機能」→「Apps Script」
 - `gas/Code.gs` の内容を貼り付け
+- `SPREADSHEET_ID` に「榊収穫管理DB」のスプレッドシートIDを設定する
 - `SHEET_NAME` が実際のシート名と一致していることを確認（初期: `シート1`）
 
 ### 3) Webアプリとしてデプロイ
