@@ -103,6 +103,30 @@
     return Math.round(s * 100) / 100;
   }
 
+  function formatDateValue(value) {
+    if (!value) return "";
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const yyyy = value.getFullYear();
+      const mm = String(value.getMonth() + 1).padStart(2, "0");
+      const dd = String(value.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    const raw = String(value).trim();
+    const isoMatch = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (isoMatch) return isoMatch[1];
+
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      const yyyy = parsed.getFullYear();
+      const mm = String(parsed.getMonth() + 1).padStart(2, "0");
+      const dd = String(parsed.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    return raw;
+  }
+
   function toast(kind, msg) {
     toastEl.className = "toast";
     if (kind === "ok") toastEl.classList.add("toast--ok");
@@ -671,8 +695,11 @@
       if (!p.ok) throw new Error("JSON parse failed");
       const v = p.value;
       if (!v?.ok) throw new Error(String(v?.error || "GAS error"));
+      console.log("response", v);
+      console.log("records", v.records);
+      console.log("records.length", v.records?.length);
       console.log("[Sheets] GET parsed JSON =", v);
-      const sampleList = (v.sample || v.records || v.entries || []).slice(0, 1);
+      const sampleList = (v.records || v.entries || v.sample || []).slice(0, 1);
       const contextBits = [
         v.spreadsheetId ? `spreadsheetId=${v.spreadsheetId}` : "",
         v.sheetName ? `sheetName=${v.sheetName}` : "",
@@ -692,7 +719,7 @@
           const total = Number(e.total_weight);
           return {
             id: String(e.id || uuid()),
-            date: String(e.date || ""),
+            date: formatDateValue(e.date),
             field: String(e.field || ""),
             grade: String(e.grade || ""),
             weights,
@@ -702,8 +729,7 @@
             created_at: String(e.created_at || ""),
             updated_at: String(e.updated_at || ""),
           };
-        })
-        .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date));
+        });
 
       const countMessage = `Sheets取得件数: ${sheetEntries.length}件`;
       console.log("[Sheets] GET count =", sheetEntries.length);
