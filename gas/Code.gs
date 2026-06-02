@@ -187,13 +187,20 @@ function doGet(e) {
     ensureHeaderRow_(sh);
 
     const values = sh.getDataRange().getValues();
-    if (values.length <= 1) return jsonResponse({ ok: true, entries: [] });
-
-    const header = values[0].map((v) => String(v || "").trim());
+    const header = values[0] ? values[0].map((v) => String(v || "").trim()) : [];
     const rows = values.slice(1);
+    Logger.log(`doGet: values.length=${values.length}`);
+    Logger.log(`doGet: headers=${JSON.stringify(header)}`);
+    Logger.log(`doGet: rows.length=${rows.length}`);
+    if (values.length <= 1) {
+      const emptyResponse = { ok: true, entries: [], records: [], count: 0, sample: [] };
+      Logger.log(`doGet: response=${JSON.stringify(emptyResponse)}`);
+      return jsonResponse(emptyResponse);
+    }
+
     const idx = (name) => header.indexOf(name);
 
-    const entries = rows
+    const records = rows
       .filter((r) => r.some((c) => String(c).trim() !== ""))
       .map((r) => {
         const w = r[idx("weights")];
@@ -216,7 +223,16 @@ function doGet(e) {
         };
       });
 
-    return jsonResponse({ ok: true, entries });
+    const response = {
+      ok: true,
+      entries: records,
+      records,
+      count: records.length,
+      sample: records.slice(0, 3),
+    };
+    Logger.log(`doGet: records.length=${records.length}`);
+    Logger.log(`doGet: response=${JSON.stringify(response)}`);
+    return jsonResponse(response);
   } catch (err) {
     Logger.log(`doGet: error: ${String(err)}`);
     return jsonResponse({ ok: false, error: String(err) });

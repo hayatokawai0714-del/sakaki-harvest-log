@@ -666,14 +666,15 @@
       console.log("response.headers =", [...res.headers.entries()]);
       console.log("response.text =", text);
       console.groupEnd();
-      console.log("[Sheets] GET parsed count pending");
 
       const p = safeParseJSON(text);
       if (!p.ok) throw new Error("JSON parse failed");
       const v = p.value;
       if (!v?.ok) throw new Error(String(v?.error || "GAS error"));
+      console.log("[Sheets] GET parsed JSON =", v);
+      toast("ok", `GET結果サンプル: ${JSON.stringify((v.sample || v.records || v.entries || []).slice(0, 1))}`);
 
-      const arr = Array.isArray(v.entries) ? v.entries : [];
+      const arr = Array.isArray(v.records) ? v.records : (Array.isArray(v.entries) ? v.entries : []);
       sheetEntries = arr
         .filter((e) => e && typeof e === "object")
         .map((e) => {
@@ -700,6 +701,7 @@
       const countMessage = `Sheets取得件数: ${sheetEntries.length}件`;
       console.log("[Sheets] GET count =", sheetEntries.length);
       console.log("[Sheets] GET endpoint =", endpoint);
+      console.log("[Sheets] GET sample =", sheetEntries.slice(0, 3));
       if (!silent) toast("ok", countMessage);
       render();
       return { ok: true, count: sheetEntries.length, endpoint };
