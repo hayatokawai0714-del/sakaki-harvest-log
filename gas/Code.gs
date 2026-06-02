@@ -6,7 +6,7 @@
  * id,date,field,grade,weights,total_weight,user,memo,created_at,updated_at
  */
 
-const SPREADSHEET_ID = "ここに榊収穫管理DBのスプレッドシートIDを入れる";
+const SPREADSHEET_ID = "1QdP4NN-4vWbtkbfP5gSQ0WZTfJSABp-I4UWsmZ2WHeI";
 const SHEET_NAME = "シート1";
 const HEADERS = [
   "id",
@@ -251,3 +251,4 @@ function doGet(e) {
     return jsonResponse({ ok: false, error: String(err) });
   }
 }
+
