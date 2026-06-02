@@ -6,7 +6,6 @@
  * id,date,field,grade,weights,total_weight,user,memo,created_at,updated_at
  */
 
-const SPREADSHEET_ID = "1QdP4NN-4vWbtkbfP5gSQ0WZTfJSABp-I4UWsmZ2WHeI";
 const SHEET_NAME = "シート1";
 const HEADERS = [
   "id",
@@ -28,7 +27,7 @@ function jsonResponse(obj) {
 }
 
 function getSheet_() {
-  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName(SHEET_NAME);
   if (!sh) throw new Error(`Sheet not found: ${SHEET_NAME}`);
   return sh;
@@ -68,7 +67,7 @@ function ensureHeaderRow_(sh) {
 
 function buildContext_(sh) {
   return {
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: SpreadsheetApp.getActiveSpreadsheet().getId(),
     sheetName: SHEET_NAME,
     lastRow: sh.getLastRow(),
     lastColumn: sh.getLastColumn(),
