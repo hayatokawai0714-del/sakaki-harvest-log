@@ -306,9 +306,10 @@
     listEl.appendChild(frag);
 
     const src = sheetEntries ? "Sheets表示" : "localStorage表示";
-    logSourceEl.textContent = src;
     const ep = getEndpoint();
-    statusEl.textContent = ep ? `Sheets: 設定あり / local: ${entries.length}件` : `Sheets: 未設定 / local: ${entries.length}件`;
+    const endpointLabel = ep ? `endpoint: ${ep}` : "endpoint: 未設定";
+    logSourceEl.textContent = `${src} / ${endpointLabel}`;
+    statusEl.textContent = ep ? `Sheets: 設定あり / local: ${entries.length}件 / ${endpointLabel}` : `Sheets: 未設定 / local: ${entries.length}件 / ${endpointLabel}`;
   }
 
   function openEdit(id) {
@@ -566,7 +567,6 @@
     }
 
     const silent = Boolean(opts?.silent);
-    const expectId = String(opts?.expectId || "");
 
     if (!silent) toast("warn", "Sheetsから読み込み中...");
 
@@ -577,6 +577,7 @@
       console.log("response.status =", res.status, res.statusText);
       console.log("response.text =", text);
       console.groupEnd();
+      console.log("[Sheets] GET parsed count pending");
 
       const p = safeParseJSON(text);
       if (!p.ok) throw new Error("JSON parse failed");
@@ -607,15 +608,10 @@
         })
         .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date));
 
-      if (!silent) toast("ok", `Sheets読み込み完了: ${sheetEntries.length}件`);
+      const countMessage = `Sheets取得件数: ${sheetEntries.length}件`;
+      console.log("[Sheets] GET count =", sheetEntries.length);
+      if (!silent) toast("ok", countMessage);
       render();
-
-      if (expectId) {
-        const found = sheetEntries.some((e) => e.id === expectId);
-        if (!found) {
-          toast("warn", "保存後の確認: Sheets側に反映が見つかりませんでした（反映遅延/別シート/別URLの可能性）");
-        }
-      }
     } catch (err) {
       toast("err", `Sheets読み込み失敗: ${String(err)}`);
       console.error("[Sheets] GET error =", err);
@@ -660,6 +656,7 @@
       const result = await postToSheets(buildPostPayload(entry));
       if (result?.ok) {
         toast("ok", "Sheets保存成功");
+        console.log("[Sheets] POST response =", result);
         // localStorageはバックアップとしても保存しておく（重複を避けるため id を保持）
         entries.push(entry);
         saveLocal();
@@ -667,11 +664,11 @@
         resetFormDefaults();
         setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
         updateTotal();
-        // Sheets表示中でも新規は反映させたいので再取得はユーザー任せ
-        sheetEntries = null;        render();
+        sheetEntries = null;
+        render();
 
-        // 保存後にGETで再読み込みして反映確認（任意）
-        await fetchFromSheets({ silent: true, expectId: String(result.id || "") });
+        toast("ok", `POSTレスポンス: ${JSON.stringify(result)}`);
+        await fetchFromSheets({ silent: false });
         return;
       }
       throw new Error(`GAS error: ${String(result?.error || "unknown")} / http=${String(result?.httpStatus ?? "")} / raw=${String(result?.rawText ?? "")}`);
