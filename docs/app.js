@@ -528,6 +528,10 @@
     // text/plain は “simple request” 扱いになりやすく、OPTIONS preflight を回避できるケースが多い。
     const req = {
       method: "POST",
+      mode: "cors",
+      credentials: "omit",
+      cache: "no-store",
+      redirect: "follow",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body,
     };
@@ -535,6 +539,7 @@
     console.groupCollapsed("[Sheets] POST", endpoint);
     console.log("payload =", payload);
     console.log("request =", req);
+    console.log("userAgent =", navigator.userAgent);
 
     let res;
     let text = "";
@@ -542,21 +547,22 @@
       res = await fetch(endpoint, req);
       text = await res.text();
       console.log("response.status =", res.status, res.statusText);
+      console.log("response.headers =", [...res.headers.entries()]);
       console.log("response.text =", text);
     } catch (err) {
       console.error("[Sheets] POST fetch error =", err);
       console.groupEnd();
-      return { ok: false, error: `fetch error: ${String(err)}` };
+      return { ok: false, error: `fetch error: ${String(err)}`, transport: "fetch" };
     }
 
     console.groupEnd();
 
     const p = safeParseJSON(text);
     if (!p.ok) {
-      return { ok: false, error: "レスポンスJSONが不正", httpStatus: res.status, rawText: text };
+      return { ok: false, error: "レスポンスJSONが不正", httpStatus: res.status, rawText: text, transport: "fetch" };
     }
 
-    return { ...p.value, httpStatus: res.status, rawText: text };
+    return { ...p.value, httpStatus: res.status, rawText: text, transport: "fetch" };
   }
 
   async function fetchFromSheets(opts) {
@@ -572,9 +578,16 @@
 
     try {
       console.groupCollapsed("[Sheets] GET", endpoint);
-      const res = await fetch(endpoint, { method: "GET" });
+      const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}t=${Date.now()}`, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "follow",
+      });
       const text = await res.text();
       console.log("response.status =", res.status, res.statusText);
+      console.log("response.headers =", [...res.headers.entries()]);
       console.log("response.text =", text);
       console.groupEnd();
       console.log("[Sheets] GET parsed count pending");
@@ -610,6 +623,7 @@
 
       const countMessage = `Sheets取得件数: ${sheetEntries.length}件`;
       console.log("[Sheets] GET count =", sheetEntries.length);
+      console.log("[Sheets] GET endpoint =", endpoint);
       if (!silent) toast("ok", countMessage);
       render();
     } catch (err) {
@@ -657,6 +671,8 @@
       if (result?.ok) {
         toast("ok", "Sheets保存成功");
         console.log("[Sheets] POST response =", result);
+        toast("ok", `POSTレスポンス: ${JSON.stringify(result)}`);
+        toast("ok", `endpoint: ${getEndpoint()}`);
         // localStorageはバックアップとしても保存しておく（重複を避けるため id を保持）
         entries.push(entry);
         saveLocal();
@@ -666,8 +682,6 @@
         updateTotal();
         sheetEntries = null;
         render();
-
-        toast("ok", `POSTレスポンス: ${JSON.stringify(result)}`);
         await fetchFromSheets({ silent: false });
         return;
       }
