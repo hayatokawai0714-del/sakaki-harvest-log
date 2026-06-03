@@ -82,6 +82,8 @@
   let ocrImageDataUrl = "";
   /** @type {string[]} */
   let ocrCandidateValues = [];
+  /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
+  let ocrCandidateDetails = [];
 
   function nowISO() {
     return new Date().toISOString();
@@ -158,23 +160,146 @@
     return fmtWeight(Number(fixed));
   }
 
+  function postCorrectOcrValue(value) {
+    const raw = String(value || "").trim().replace(/,/g, ".").replace(/[^\d.]/g, "");
+    if (!raw) return "";
+    if (/^\d{3}$/.test(raw)) {
+      const whole = Number(raw[0]);
+      const fraction = raw.slice(1);
+      const corrected = `${whole}.${fraction}`;
+      return normalizeOcrCandidate(corrected);
+    }
+    if (/^\d{1,2}$/.test(raw)) {
+      return normalizeOcrCandidate(`${raw}.0`);
+    }
+    if (/^\d{1,2}\.\d{1,2}$/.test(raw)) {
+      return normalizeOcrCandidate(raw);
+    }
+    return "";
+  }
+
+  function validateWeightRange(value) {
+    const num = Number(value);
+    return Number.isFinite(num) && num >= 0.5 && num <= 5;
+  }
+
   function extractWeightCandidates(text) {
     const normalizedText = String(text || "")
-      .replace(/[，。]/g, ".")
+      .replace(/[，．。]/g, ".")
+      .replace(/[oO]/g, "0")
       .replace(/[^\d.\n\r\s]/g, " ");
-    const matches = normalizedText.match(/\b\d{1,2}(?:\.\d{1,2})?\b/g) || [];
+    const matches = normalizedText.match(/\b\d{1,3}(?:\.\d{1,2})?\b/g) || [];
     const deduped = [];
     for (const token of matches) {
-      const candidate = normalizeOcrCandidate(token);
-      if (!candidate) continue;
-      if (!deduped.includes(candidate)) deduped.push(candidate);
+      const corrected = postCorrectOcrValue(token);
+      if (!corrected) continue;
+      if (!deduped.includes(corrected)) deduped.push(corrected);
     }
     return deduped;
   }
 
+  async function loadImageElement(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("画像の読み込みに失敗しました"));
+      image.src = src;
+    });
+  }
+
+  function drawProcessedCanvas(image, options = {}) {
+    const maxWidth = options.maxWidth || 1400;
+    const scale = Math.min(1, maxWidth / image.naturalWidth);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+
+    context.drawImage(image, 0, 0, width, height);
+    const imageData = context.getImageData(0, 0, width, height);
+    const data = imageData.data;
+
+    for (let index = 0; index < data.length; index += 4) {
+      const gray = Math.round(data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114);
+      const boosted = Math.min(255, Math.max(0, (gray - 128) * 1.35 + 128));
+      const threshold = boosted > 165 ? 255 : 0;
+      data[index] = threshold;
+      data[index + 1] = threshold;
+      data[index + 2] = threshold;
+      data[index + 3] = 255;
+    }
+
+    context.putImageData(imageData, 0, 0);
+    return canvas;
+  }
+
+  function detectTextRows(canvas) {
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return [];
+    const { width, height } = canvas;
+    const { data } = context.getImageData(0, 0, width, height);
+    const rowScores = new Array(height).fill(0);
+
+    for (let y = 0; y < height; y += 1) {
+      let blackCount = 0;
+      for (let x = 0; x < width; x += 1) {
+        const index = (y * width + x) * 4;
+        if (data[index] < 128) blackCount += 1;
+      }
+      rowScores[y] = blackCount;
+    }
+
+    const threshold = Math.max(4, Math.round(width * 0.04));
+    const bands = [];
+    let start = -1;
+    for (let y = 0; y < rowScores.length; y += 1) {
+      if (rowScores[y] >= threshold && start === -1) start = y;
+      if ((rowScores[y] < threshold || y === rowScores.length - 1) && start !== -1) {
+        const end = rowScores[y] < threshold ? y - 1 : y;
+        if (end - start > 8) bands.push({ start: Math.max(0, start - 6), end: Math.min(height - 1, end + 6) });
+        start = -1;
+      }
+    }
+    return bands;
+  }
+
+  function cropCanvas(canvas, band) {
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return null;
+    const crop = document.createElement("canvas");
+    crop.width = canvas.width;
+    crop.height = band.end - band.start + 1;
+    const cropContext = crop.getContext("2d", { willReadFrequently: true });
+    if (!cropContext) return null;
+    cropContext.drawImage(canvas, 0, band.start, canvas.width, band.end - band.start + 1, 0, 0, canvas.width, band.end - band.start + 1);
+    return crop;
+  }
+
+  function getCandidateConfidence(result) {
+    const words = result?.data?.words || [];
+    const confidences = words.map((word) => Number(word.confidence)).filter((v) => Number.isFinite(v) && v >= 0);
+    if (confidences.length === 0) return 0;
+    return Math.round((confidences.reduce((a, b) => a + b, 0) / confidences.length) * 10) / 10;
+  }
+
+  async function recognizeCanvas(canvas) {
+    const result = await window.Tesseract.recognize(canvas, "eng", {
+      logger: (m) => {
+        if (m.status) setOcrStatus(`読み取り中... ${m.status}${m.progress != null ? ` ${Math.round(m.progress * 100)}%` : ""}`);
+      },
+      tessedit_pageseg_mode: 6,
+      tessedit_char_whitelist: "0123456789.",
+    });
+    return result;
+  }
+
   function renderOcrCandidates(values) {
     const items = Array.isArray(values) ? values : [];
-    ocrCandidateValues = items.slice();
+    ocrCandidateValues = items.map((item) => String(item || ""));
     ocrCandidatesEl.innerHTML = "";
 
     if (items.length === 0) {
@@ -183,19 +308,34 @@
     }
 
     for (const [index, value] of items.entries()) {
+      const details = ocrCandidateDetails[index] || { rawText: value, corrected: value, confidence: 0, valid: validateWeightRange(value) };
       const row = document.createElement("div");
       row.className = "ocrCandidate";
       row.innerHTML = `
-        <input type="text" inputmode="decimal" value="${escapeHtml(value)}" aria-label="候補${index + 1}" />
+        <div class="ocrCandidate__info">
+          <div class="ocrCandidate__value">
+            <input type="text" inputmode="decimal" value="${escapeHtml(value)}" aria-label="候補${index + 1}" />
+          </div>
+          <div class="ocrBadge">OCR値: ${escapeHtml(details.rawText)} / 補正値: ${escapeHtml(details.corrected)} / 信頼度: ${escapeHtml(String(details.confidence))}%${details.valid ? "" : " / 範囲外"}</div>
+        </div>
         <button class="btn btn--danger ocrCandidate__del" type="button">削除</button>
       `;
       const input = /** @type {HTMLInputElement} */ (row.querySelector("input"));
       const delBtn = /** @type {HTMLButtonElement} */ (row.querySelector("button"));
       input.addEventListener("input", () => {
         ocrCandidateValues[index] = input.value;
+        const corrected = postCorrectOcrValue(input.value);
+        ocrCandidateDetails[index] = {
+          rawText: ocrCandidateDetails[index]?.rawText || input.value,
+          corrected,
+          confidence: ocrCandidateDetails[index]?.confidence || 0,
+          valid: validateWeightRange(corrected),
+        };
+        renderOcrCandidates(ocrCandidateValues);
       });
       delBtn.addEventListener("click", () => {
         ocrCandidateValues.splice(index, 1);
+        ocrCandidateDetails.splice(index, 1);
         renderOcrCandidates(ocrCandidateValues);
       });
       ocrCandidatesEl.appendChild(row);
@@ -203,9 +343,9 @@
   }
 
   function applyOcrToWeights() {
-    const values = ocrCandidateValues
-      .map(normalizeOcrCandidate)
-      .filter((v) => v);
+    const values = ocrCandidateDetails
+      .map((item) => item.corrected || postCorrectOcrValue(item.rawText))
+      .filter((v) => v && validateWeightRange(v));
     setWeightsTo(weightsWrap, values.length ? values : [""], updateTotal, updateTotal);
     updateTotal();
     toast("ok", "重量一覧へ反映しました");
@@ -225,18 +365,63 @@
     toast("warn", "読み取り中...");
 
     try {
-      const result = await window.Tesseract.recognize(ocrImageDataUrl, "eng", {
-        logger: (m) => {
-          if (m.status) setOcrStatus(`読み取り中... ${m.status}${m.progress != null ? ` ${Math.round(m.progress * 100)}%` : ""}`);
-        },
-      });
-      const text = result?.data?.text || "";
-      console.log("[OCR] raw text =", text);
-      const candidates = extractWeightCandidates(text);
-      console.log("[OCR] candidates =", candidates);
-      renderOcrCandidates(candidates);
-      setOcrStatus(candidates.length ? `読み取り完了: ${candidates.length}件` : "読み取り完了: 候補なし");
-      toast("ok", candidates.length ? `読み取り完了: ${candidates.length}件` : "読み取り完了: 候補なし");
+      const image = await loadImageElement(ocrImageDataUrl);
+      const processed = drawProcessedCanvas(image, { maxWidth: 1200 });
+      if (!processed) throw new Error("画像の前処理に失敗しました");
+
+      const bands = detectTextRows(processed);
+      console.log("[OCR] bands =", bands);
+      if (bands.length === 0) {
+        const fallback = await recognizeCanvas(processed);
+        const fallbackText = fallback?.data?.text || "";
+        console.log("[OCR] full text =", fallbackText);
+        const fallbackConfidence = getCandidateConfidence(fallback);
+        const fallbackCandidates = extractWeightCandidates(fallbackText).map((value) => ({
+          rawText: value,
+          corrected: value,
+          confidence: fallbackConfidence,
+          valid: validateWeightRange(value),
+        }));
+        ocrCandidateDetails = fallbackCandidates;
+        renderOcrCandidates(fallbackCandidates.map((item) => item.corrected));
+        setOcrStatus(fallbackCandidates.length ? `読み取り完了: ${fallbackCandidates.length}件` : "読み取り完了: 候補なし");
+        toast("ok", fallbackCandidates.length ? `読み取り完了: ${fallbackCandidates.length}件` : "読み取り完了: 候補なし");
+        return;
+      }
+
+      const results = [];
+      for (const band of bands) {
+        const cropped = cropCanvas(processed, band);
+        if (!cropped) continue;
+        const bandResult = await recognizeCanvas(cropped);
+        const bandText = bandResult?.data?.text || "";
+        const confidence = getCandidateConfidence(bandResult);
+        console.log("[OCR] row text =", bandText);
+        console.log("[OCR] row confidence =", confidence);
+        const extracted = extractWeightCandidates(bandText);
+        for (const rawText of extracted) {
+          const corrected = postCorrectOcrValue(rawText);
+          results.push({
+            rawText,
+            corrected: corrected || rawText,
+            confidence,
+            valid: validateWeightRange(corrected || rawText),
+          });
+        }
+      }
+
+      const deduped = [];
+      for (const item of results) {
+        const key = item.corrected || item.rawText;
+        if (!deduped.some((existing) => (existing.corrected || existing.rawText) === key)) deduped.push(item);
+      }
+
+      ocrCandidateDetails = deduped;
+      renderOcrCandidates(deduped.map((item) => item.corrected || item.rawText));
+      const validCount = deduped.filter((item) => item.valid).length;
+      const warningCount = deduped.length - validCount;
+      setOcrStatus(`読み取り完了: ${deduped.length}件${warningCount ? ` / 範囲外 ${warningCount}件` : ""}`);
+      toast("ok", deduped.length ? `読み取り完了: ${deduped.length}件` : "読み取り完了: 候補なし");
     } catch (err) {
       console.error("[OCR] error =", err);
       setOcrStatus(`読み取り失敗: ${String(err)}`);
@@ -963,6 +1148,7 @@
     ocrImageFile = null;
     ocrImageDataUrl = "";
     ocrCandidateValues = [];
+    ocrCandidateDetails = [];
     if (ocrImageEl) ocrImageEl.value = "";
     setOcrPreview("");
     setOcrStatus("未読み取り");
@@ -1030,7 +1216,12 @@
     btnExportJson.addEventListener("click", exportJson);
     btnOcrRead.addEventListener("click", readOcrImage);
     btnOcrApply.addEventListener("click", applyOcrToWeights);
-    btnOcrClear.addEventListener("click", () => renderOcrCandidates([]));
+    btnOcrClear.addEventListener("click", () => {
+      ocrCandidateValues = [];
+      ocrCandidateDetails = [];
+      renderOcrCandidates([]);
+      setOcrStatus("候補をクリアしました");
+    });
 
     ocrImageEl.addEventListener("change", async () => {
       const file = ocrImageEl.files?.[0] || null;

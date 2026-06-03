@@ -122,6 +122,8 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   gap:8px;
   align-items:center;
 }
+.ocrCandidate__info{display:flex;flex-direction:column;gap:6px}
+.ocrCandidate__value input{width:100%}
 .ocrCandidate input{margin:0}
 .ocrCandidate__del{align-self:stretch}
 
