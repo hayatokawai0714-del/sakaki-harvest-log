@@ -38,6 +38,13 @@
   const btnExportCsv = $("#btnExportCsv");
   const btnExportJson = $("#btnExportJson");
   const fileImport = /** @type {HTMLInputElement} */ ($("#fileImport"));
+  const ocrImageEl = /** @type {HTMLInputElement} */ ($("#ocrImage"));
+  const ocrPreviewEl = /** @type {HTMLImageElement} */ ($("#ocrPreview"));
+  const ocrStatusEl = $("#ocrStatus");
+  const btnOcrRead = $("#btnOcrRead");
+  const btnOcrApply = $("#btnOcrApply");
+  const btnOcrClear = $("#btnOcrClear");
+  const ocrCandidatesEl = $("#ocrCandidates");
 
   const dlgEdit = /** @type {HTMLDialogElement} */ ($("#dlgEdit"));
   const editForm = /** @type {HTMLFormElement} */ ($("#editForm"));
@@ -69,6 +76,12 @@
   let submitPayloadInput = null;
   /** @type {HTMLInputElement | null} */
   let submitReturnInput = null;
+  /** @type {File | null} */
+  let ocrImageFile = null;
+  /** @type {string} */
+  let ocrImageDataUrl = "";
+  /** @type {string[]} */
+  let ocrCandidateValues = [];
 
   function nowISO() {
     return new Date().toISOString();
@@ -125,6 +138,110 @@
     }
 
     return raw;
+  }
+
+  function setOcrStatus(message) {
+    ocrStatusEl.textContent = message;
+  }
+
+  function setOcrPreview(src) {
+    ocrPreviewEl.src = src || "";
+    ocrPreviewEl.style.display = src ? "block" : "none";
+  }
+
+  function normalizeOcrCandidate(value) {
+    const raw = String(value || "").trim().replace(/,/g, ".");
+    if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(raw)) return "";
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num <= 0 || num > 99.99) return "";
+    const fixed = raw.includes(".") ? raw : `${raw}.0`;
+    return fmtWeight(Number(fixed));
+  }
+
+  function extractWeightCandidates(text) {
+    const normalizedText = String(text || "")
+      .replace(/[，。]/g, ".")
+      .replace(/[^\d.\n\r\s]/g, " ");
+    const matches = normalizedText.match(/\b\d{1,2}(?:\.\d{1,2})?\b/g) || [];
+    const deduped = [];
+    for (const token of matches) {
+      const candidate = normalizeOcrCandidate(token);
+      if (!candidate) continue;
+      if (!deduped.includes(candidate)) deduped.push(candidate);
+    }
+    return deduped;
+  }
+
+  function renderOcrCandidates(values) {
+    const items = Array.isArray(values) ? values : [];
+    ocrCandidateValues = items.slice();
+    ocrCandidatesEl.innerHTML = "";
+
+    if (items.length === 0) {
+      ocrCandidatesEl.innerHTML = `<div class="hint">候補がありません。撮影画像を確認して再読み取りしてください。</div>`;
+      return;
+    }
+
+    for (const [index, value] of items.entries()) {
+      const row = document.createElement("div");
+      row.className = "ocrCandidate";
+      row.innerHTML = `
+        <input type="text" inputmode="decimal" value="${escapeHtml(value)}" aria-label="候補${index + 1}" />
+        <button class="btn btn--danger ocrCandidate__del" type="button">削除</button>
+      `;
+      const input = /** @type {HTMLInputElement} */ (row.querySelector("input"));
+      const delBtn = /** @type {HTMLButtonElement} */ (row.querySelector("button"));
+      input.addEventListener("input", () => {
+        ocrCandidateValues[index] = input.value;
+      });
+      delBtn.addEventListener("click", () => {
+        ocrCandidateValues.splice(index, 1);
+        renderOcrCandidates(ocrCandidateValues);
+      });
+      ocrCandidatesEl.appendChild(row);
+    }
+  }
+
+  function applyOcrToWeights() {
+    const values = ocrCandidateValues
+      .map(normalizeOcrCandidate)
+      .filter((v) => v);
+    setWeightsTo(weightsWrap, values.length ? values : [""], updateTotal, updateTotal);
+    updateTotal();
+    toast("ok", "重量一覧へ反映しました");
+  }
+
+  async function readOcrImage() {
+    if (!ocrImageFile || !ocrImageDataUrl) {
+      toast("warn", "先に写真を選択してください");
+      return;
+    }
+    if (!window.Tesseract?.recognize) {
+      toast("err", "OCRライブラリが読み込まれていません");
+      return;
+    }
+
+    setOcrStatus("読み取り中...");
+    toast("warn", "読み取り中...");
+
+    try {
+      const result = await window.Tesseract.recognize(ocrImageDataUrl, "eng", {
+        logger: (m) => {
+          if (m.status) setOcrStatus(`読み取り中... ${m.status}${m.progress != null ? ` ${Math.round(m.progress * 100)}%` : ""}`);
+        },
+      });
+      const text = result?.data?.text || "";
+      console.log("[OCR] raw text =", text);
+      const candidates = extractWeightCandidates(text);
+      console.log("[OCR] candidates =", candidates);
+      renderOcrCandidates(candidates);
+      setOcrStatus(candidates.length ? `読み取り完了: ${candidates.length}件` : "読み取り完了: 候補なし");
+      toast("ok", candidates.length ? `読み取り完了: ${candidates.length}件` : "読み取り完了: 候補なし");
+    } catch (err) {
+      console.error("[OCR] error =", err);
+      setOcrStatus(`読み取り失敗: ${String(err)}`);
+      toast("err", `読み取り失敗: ${String(err)}`);
+    }
   }
 
   function toast(kind, msg) {
@@ -843,6 +960,13 @@
     // weights default 1 row
     setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
     updateTotal();
+    ocrImageFile = null;
+    ocrImageDataUrl = "";
+    ocrCandidateValues = [];
+    if (ocrImageEl) ocrImageEl.value = "";
+    setOcrPreview("");
+    setOcrStatus("未読み取り");
+    renderOcrCandidates([]);
 
     // other user label
     const s = loadSettings();
@@ -904,6 +1028,36 @@
     btnFetch.addEventListener("click", fetchFromSheets);
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
+    btnOcrRead.addEventListener("click", readOcrImage);
+    btnOcrApply.addEventListener("click", applyOcrToWeights);
+    btnOcrClear.addEventListener("click", () => renderOcrCandidates([]));
+
+    ocrImageEl.addEventListener("change", async () => {
+      const file = ocrImageEl.files?.[0] || null;
+      ocrImageFile = file;
+      if (!file) {
+        ocrImageDataUrl = "";
+        setOcrPreview("");
+        setOcrStatus("未読み取り");
+        renderOcrCandidates([]);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        ocrImageDataUrl = String(reader.result || "");
+        setOcrPreview(ocrImageDataUrl);
+        setOcrStatus("画像を選択しました。読み取りを押してください。");
+        toast("ok", "画像を選択しました");
+      };
+      reader.onerror = () => {
+        ocrImageDataUrl = "";
+        setOcrPreview("");
+        setOcrStatus("画像の読み込みに失敗しました");
+        toast("err", "画像の読み込みに失敗しました");
+      };
+      reader.readAsDataURL(file);
+    });
 
     fileImport.addEventListener("change", async () => {
       const file = fileImport.files?.[0];

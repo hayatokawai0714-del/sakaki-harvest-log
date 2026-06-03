@@ -76,6 +76,32 @@
         </div>
 
         <div class="field">
+          <label for="ocrImage">写真を選択 / 撮影</label>
+          <input id="ocrImage" type="file" accept="image/*" capture="environment" />
+          <div class="hint">ホワイトボードの写真から重量を読み取ります。OCR結果は保存前に修正できます。</div>
+        </div>
+
+        <div class="ocrPanel" aria-live="polite">
+          <div class="ocrPanel__preview">
+            <img id="ocrPreview" alt="OCRプレビュー" />
+          </div>
+          <div class="ocrPanel__meta">
+            <div id="ocrStatus" class="hint">未読み取り</div>
+            <div class="actions">
+              <button class="btn btn--ghost" id="btnOcrRead" type="button">読み取る</button>
+              <button class="btn btn--ghost" id="btnOcrApply" type="button">重量一覧へ反映</button>
+            </div>
+          </div>
+          <div class="ocrPanel__results">
+            <div class="labelRow">
+              <label>読み取った重量候補</label>
+              <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">候補クリア</button>
+            </div>
+            <div id="ocrCandidates" class="ocrCandidates"></div>
+          </div>
+        </div>
+
+        <div class="field">
           <div class="labelRow">
             <label>重量一覧（kg）</label>
             <button class="btn btn--ghost btn--sm" id="btnAddWeight" type="button">＋追加</button>
@@ -226,5 +252,6 @@
   </dialog>
 
   <script src="./app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </body>
 </html>
