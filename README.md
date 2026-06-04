@@ -1,99 +1,125 @@
-﻿# sakaki-harvest-log
+# sakaki-harvest-log
 
-GitHub Pages 上で動く、榊の収穫管理（入力・集計・ログ閲覧）アプリです。
+榊の収穫管理アプリです。Cloudflare Pages Functions + D1 を主保存先にして、スマホで使いやすい入力・集計・CSV出力を安定運用する構成に移行しています。
 
-- 通常時: Google スプレッドシート（Apps Script経由）へ保存
-- 通信失敗時: localStorage に退避（バックアップ）
+- 主保存先: Cloudflare D1
+- 既存UI: なるべく維持
+- Google Sheets: 既存連携は残す
+- OCR: 保留
+- OpenAI API: 未実装
+
+## できること
+- 日付 / 圃場 / 規格 / 重量一覧 / 合計重量 / 担当者 / メモの入力
+- 保存、読込、編集、削除
+- 月別・圃場別・規格別の集計
+- CSV出力
+- localStorage へのバックアップ
+
+## 構成
+- `docs/` - 静的UI
+- `functions/` - Cloudflare Pages Functions API
+- `migrations/` - D1 マイグレーション
+- `schema.sql` - 初期スキーマ
+- `wrangler.toml` - Cloudflare 設定
+
+## Cloudflare セットアップ
+
+### 1. Cloudflare アカウント作成
+1. Cloudflare にログインします。
+2. `Workers & Pages` を開きます。
+
+### 2. GitHub 連携
+1. `Pages` から `Create a project` を選びます。
+2. GitHub リポジトリ `sakaki-harvest-log` を接続します。
+3. ビルド設定は `docs` を公開ディレクトリとして使います。
+
+### 3. D1 作成
+`wrangler` が入っている前提で、次のコマンドを実行します。
+
+```bash
+npx wrangler d1 create sakaki-harvest-log
+```
+
+作成後に表示される `database_id` を `wrangler.toml` の `REPLACE_WITH_D1_DATABASE_ID` に設定します。
+
+### 4. migration 適用
+ローカルにプレビューを作る場合:
+
+```bash
+npx wrangler d1 migrations apply sakaki-harvest-log --local
+```
+
+本番 D1 に反映する場合:
+
+```bash
+npx wrangler d1 migrations apply sakaki-harvest-log --remote
+```
+
+### 5. ローカル実行
+Pages Functions を含めてローカルで動かす例です。
+
+```bash
+npx wrangler pages dev docs
+```
+
+D1 を紐づける例:
+
+```bash
+npx wrangler pages dev docs --d1 DB=<database_id>
+```
+
+### 6. デプロイ
+Cloudflare Pages に GitHub を接続している場合は、`main` ブランチへ push すると自動デプロイされます。
+
+手動デプロイする場合の例:
+
+```bash
+npx wrangler pages deploy docs
+```
+
+## Secret 設定
+将来の OpenAI 連携用に、API キーは GitHub に置かず Cloudflare の Secret に保存します。
+
+Pages の Secret を追加する例:
+
+```bash
+npx wrangler pages secret put OPENAI_API_KEY --project-name sakaki-harvest-log
+```
+
+ローカル開発用に `.dev.vars` を使う場合は、Git に入れないでください。`.gitignore` に登録済みです。
 
 ## 使い方（アプリ）
-- `docs/index.html` をブラウザで開く（GitHub Pages 推奨）
-- 日付/圃場/規格/入力者/重量一覧/メモを入力して保存
-- 写真を撮影して OCR で重量候補を読み取り、候補を修正して重量一覧へ反映できる
-- `Sheets読込` でスプレッドシート保存済みログを取得（任意）
-- CSV/JSON の出力、JSON取込（localStorage向け）
+- `docs/index.html` を Cloudflare Pages で開く
+- 日付 / 圃場 / 規格 / 重量一覧 / メモ を入力して保存
+- `D1読込` で保存済みログを再読込
+- `CSV出力` でアグリノート取り込み用 CSV を出力
+- `JSON取込` は localStorage バックアップの取り込み用
 
-## OCR機能
-- `写真を選択 / 撮影` からホワイトボード画像を選ぶ
-- `読み取る` を押して OCR を実行する
-- `読み取った重量候補` で数値を手動修正・削除する
-- `重量一覧へ反映` でフォームの重量一覧に入れる
-- OCR はブラウザ内で動く Tesseract.js を使用するため、APIキーは不要
-- OCR 前処理として画像縮小・グレースケール化・コントラスト強調・白黒化を行う
-- OCR 候補は `OCR値 / 補正値 / 信頼度` を確認してから反映する
-- 妥当値は 0.50～5.00kg を目安にし、範囲外は警告表示する
+## CSV 出力
+CSV は後からフォーマットを変えやすいように、コード内のエクスポート定義をまとめています。現在は下記列で出力します。
 
-## Google Apps Script（スプレッドシート連携）
+`id,date,field,grade,weights,total_weight,user,memo,created_at,updated_at`
 
-### 1) スプレッドシートを用意
-- Google スプレッドシートを作成（名前: **榊収穫管理DB**）
-- シート名は仮で **シート1**
-- 1行目（ヘッダ）を次の列で作成:
+## 動作確認
+### 保存
+1. フォームに値を入れます。
+2. `保存` を押します。
+3. D1 にレコードが追加されます。
 
-```
-id
-date
-field
-grade
-weights
-total_weight
-user
-memo
-created_at
-updated_at
-```
+### 読込
+1. `D1読込` を押します。
+2. 一覧に保存済みレコードが表示されます。
 
-### 2) Apps Script を作成
-- スプレッドシートで「拡張機能」→「Apps Script」
-- `gas/Code.gs` の内容を貼り付け
-- `SPREADSHEET_ID` に「榊収穫管理DB」のスプレッドシートIDを設定する
-- `SHEET_NAME` が実際のシート名と一致していることを確認（初期: `シート1`）
+### 編集 / 削除
+1. 一覧の `編集` / `削除` を使います。
+2. D1 と localStorage のバックアップが更新されます。
 
-### 3) Webアプリとしてデプロイ
-- 「デプロイ」→「新しいデプロイ」
-- 種類: **ウェブアプリ**
-- 実行ユーザー: **自分**
-- アクセスできるユーザー: 運用に合わせて選択（テストは「全員」推奨）
-- デプロイ後に表示される **WebアプリURL** を控える
+### CSV
+1. `CSV出力` を押します。
+2. ブラウザで CSV がダウンロードされます。
 
-### 4) アプリ側にURL設定
-次のいずれかで Apps Script URL を設定します（秘密情報は不要です）。
+## Google Sheets について
+Google Sheets 連携のコードは残していますが、主保存先は Cloudflare D1 です。既存連携をバックアップ用途で使う場合は、設定画面の URL をそのまま利用できます。
 
-- 推奨: アプリの `設定` → 「Apps Script WebアプリURL」に貼り付け（端末ごとにlocalStorage保存）
-- もしくは: `docs/app.js` の `GAS_ENDPOINT` を **既定値** として設定（全端末で共通URLにしたい場合）
-
-※スマホでも `GAS_ENDPOINT` を設定していれば、端末ごとの設定が無くてもSheets保存できます。端末別に異なるURLを使いたい場合のみ `設定` で上書きしてください。
-
-### iPhone Safari 対策
-- iPhone Safari では `fetch` が `TypeError: Load failed` になりやすいため、保存は hidden iframe + form 送信で行います。
-- `docs/app.js` は `payload` hidden input を使って Apps Script に送信します。
-- Apps Script 側の `doPost` は `e.parameter.payload` と `e.postData.contents` の両方に対応しています。
-
-## 動作確認手順
-
-### A. Sheets保存の確認
-1. アプリを開く
-2. `設定` で Apps Script WebアプリURL を設定
-3. 入力して `保存`
-4. 「Sheets保存しました」と表示される
-5. スプレッドシートに行が追加されている
-
-### B. 通信失敗時の退避確認
-1. `設定` のURLを空にする（または無効なURLを入れる）
-2. 入力して `保存`
-3. 「Sheets保存失敗 → localStorageに退避しました」と表示される
-4. 一覧が localStorage 表示で増えている
-
-### C. Sheets読込の確認（任意）
-1. `Sheets読込`
-2. 「Sheets読み込み完了: n件」と表示される
-
-### D. OCRの確認
-1. `写真を選択 / 撮影` からホワイトボード画像を選ぶ
-2. `読み取る` を押す
-3. `読み取った重量候補` に `OCR値 / 補正値 / 信頼度` が表示される
-4. 候補を修正して `重量一覧へ反映` を押す
-5. 合計重量が自動計算される
-
-## GitHub Pages
-GitHub Pages を使う場合は、Pages の Source を `main` ブランチの `/docs` に設定してください。
-
+## OCR について
+OCR は今回は保留です。コードは残していますが、主機能からは切り離しています。

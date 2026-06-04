@@ -131,6 +131,11 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 
 .filters{padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .summary{padding:0 16px 12px;color:var(--muted);font-size:13px}
+.summaryGrid{display:grid;grid-template-columns:1fr;gap:10px}
+.summaryCard{border:1px solid rgba(15,23,42,.10);border-radius:14px;padding:12px;background:rgba(37,99,235,.03)}
+.summaryCard__label{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.summaryCard__value{font-size:16px;font-weight:900;margin-top:4px}
+.summaryCard__meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
 
 .list{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
 .item{border:1px solid rgba(15,23,42,.10);border-radius:16px;padding:12px 12px 10px;background:#fff}

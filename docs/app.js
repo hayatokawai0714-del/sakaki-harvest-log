@@ -5,6 +5,8 @@
   // Apps Script WebアプリURL（あとで差し替え）
   // 例: const GAS_ENDPOINT = 'https://script.google.com/macros/s/XXXX/exec';
   const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx2BZ_kbNmfCXn9NktB1_mdpAWxVI_xniTN8-W9AG-RVSrBwPp0tHWVYIDXz1QOcI_yLA/exec";
+  const CLOUD_API_BASE = "/api/harvest-records";
+  const CLOUD_SOURCE_LABEL = "Cloudflare D1";
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
@@ -474,6 +476,172 @@
     return (s.endpoint || GAS_ENDPOINT || "").trim();
   }
 
+  function getCloudRecordUrl(id = "") {
+    return id ? `${CLOUD_API_BASE}/${encodeURIComponent(id)}` : CLOUD_API_BASE;
+  }
+
+  function toWeightList(value) {
+    if (Array.isArray(value)) return value.map(Number).filter((n) => Number.isFinite(n));
+    if (typeof value === "string") {
+      const parsed = safeParseJSON(value);
+      if (parsed.ok && Array.isArray(parsed.value)) {
+        return parsed.value.map(Number).filter((n) => Number.isFinite(n));
+      }
+    }
+    return [];
+  }
+
+  function normalizeBackendRecord(record) {
+    const weights = toWeightList(record?.weights);
+    const total = Number(record?.total_weight);
+    return {
+      id: String(record?.id || uuid()),
+      date: formatDateValue(record?.date),
+      field: String(record?.field || ""),
+      grade: String(record?.grade || ""),
+      weights,
+      total_weight: Number.isFinite(total) ? total : sumWeights(weights),
+      user: String(record?.user || ""),
+      memo: String(record?.memo || ""),
+      created_at: String(record?.created_at || nowISO()),
+      updated_at: String(record?.updated_at || nowISO()),
+    };
+  }
+
+  function upsertLocalRecord(record) {
+    const normalized = normalizeBackendRecord(record);
+    const index = entries.findIndex((entry) => entry.id === normalized.id);
+    if (index >= 0) entries[index] = normalized;
+    else entries.unshift(normalized);
+    saveLocal();
+    return normalized;
+  }
+
+  function removeLocalRecord(id) {
+    entries = entries.filter((entry) => entry.id !== id);
+    saveLocal();
+  }
+
+  function buildRecordPayload(entry) {
+    return {
+      id: entry.id,
+      date: entry.date,
+      field: entry.field,
+      grade: entry.grade,
+      weights: entry.weights,
+      total_weight: entry.total_weight,
+      user: entry.user,
+      memo: entry.memo,
+      created_at: entry.created_at,
+      updated_at: entry.updated_at,
+    };
+  }
+
+  async function requestBackend(path, options = {}) {
+    const { headers = {}, ...rest } = options;
+    const response = await fetch(path, {
+      ...rest,
+      headers: { "Content-Type": "application/json", ...headers },
+    });
+    const text = await response.text();
+    const parsed = safeParseJSON(text);
+    if (!parsed.ok) {
+      return { ok: false, status: response.status, error: "JSON parse failed", rawText: text };
+    }
+    return { ok: response.ok, status: response.status, data: parsed.value, rawText: text };
+  }
+
+  async function fetchCloudRecords(opts = {}) {
+    const silent = Boolean(opts.silent);
+    if (!silent) toast("warn", "Cloudflare D1 から読込中...");
+
+    try {
+      console.groupCollapsed("[Cloudflare] GET", getCloudRecordUrl());
+      const result = await requestBackend(`${getCloudRecordUrl()}?t=${Date.now()}`, { method: "GET" });
+      console.log("response", result?.data);
+      console.log("records", result?.data?.records);
+      console.log("records.length", result?.data?.records?.length);
+      console.groupEnd();
+
+      if (!result.ok || !result.data?.ok) throw new Error(String(result.data?.error || result.error || "Cloud API error"));
+
+      const records = Array.isArray(result.data.records) ? result.data.records : [];
+      const localBackup = loadLocal();
+      const merged = [
+        ...records.map(normalizeBackendRecord),
+        ...localBackup
+          .filter((record) => !records.some((cloudRecord) => String(cloudRecord.id) === String(record.id)))
+          .map(normalizeBackendRecord),
+      ];
+      sheetEntries = records.map(normalizeBackendRecord);
+      entries = merged;
+      saveLocal();
+
+      const countMessage = `D1取得件数: ${sheetEntries.length}件`;
+      if (!silent) toast("ok", countMessage);
+      render();
+      return {
+        ok: true,
+        count: sheetEntries.length,
+        records: sheetEntries,
+        source: CLOUD_SOURCE_LABEL,
+      };
+    } catch (err) {
+      console.error("[Cloudflare] GET error =", err);
+      if (!silent) toast("err", `Cloudflare読込失敗: ${String(err)}`);
+      return { ok: false, error: String(err) };
+    }
+  }
+
+  async function createCloudRecord(entry) {
+    const result = await requestBackend(getCloudRecordUrl(), {
+      method: "POST",
+      body: JSON.stringify(buildRecordPayload(entry)),
+    });
+    if (!result.ok || !result.data?.ok) {
+      throw new Error(String(result.data?.error || result.error || "Cloud save failed"));
+    }
+    return result.data.record ? normalizeBackendRecord(result.data.record) : normalizeBackendRecord(entry);
+  }
+
+  async function updateCloudRecord(entry) {
+    const result = await requestBackend(getCloudRecordUrl(entry.id), {
+      method: "PUT",
+      body: JSON.stringify(buildRecordPayload(entry)),
+    });
+    if (!result.ok || !result.data?.ok) {
+      throw new Error(String(result.data?.error || result.error || "Cloud update failed"));
+    }
+    return result.data.record ? normalizeBackendRecord(result.data.record) : normalizeBackendRecord(entry);
+  }
+
+  async function deleteCloudRecord(id) {
+    const result = await requestBackend(getCloudRecordUrl(id), {
+      method: "DELETE",
+      body: JSON.stringify({ id }),
+    });
+    if (!result.ok || !result.data?.ok) {
+      throw new Error(String(result.data?.error || result.error || "Cloud delete failed"));
+    }
+    return true;
+  }
+
+  async function deleteRecordById(id) {
+    try {
+      if (isCloudRecordId(id)) {
+        await deleteCloudRecord(id);
+        sheetEntries = sheetEntries.filter((entry) => entry.id !== id);
+      }
+      removeLocalRecord(id);
+      entries = entries.filter((entry) => entry.id !== id);
+      render();
+      toast("ok", "削除しました");
+    } catch (err) {
+      console.error("[Cloudflare] DELETE error =", err);
+      toast("err", `削除失敗: ${String(err)}`);
+    }
+  }
+
   function loadLocal() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -591,9 +759,12 @@
   function computeSummary(list) {
     const total = sumWeights(list.map((e) => Number(e.total_weight) || 0));
     const byField = new Map();
+    const byGrade = new Map();
     for (const e of list) {
       const k = e.field || "(未設定)";
       byField.set(k, (byField.get(k) || 0) + (Number(e.total_weight) || 0));
+      const g = e.grade || "(未設定)";
+      byGrade.set(g, (byGrade.get(g) || 0) + (Number(e.total_weight) || 0));
     }
     const parts = [...byField.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], "ja"))
@@ -601,12 +772,53 @@
     return { count: list.length, total, parts };
   }
 
+  function buildBreakdown(list, keySelector) {
+    const map = new Map();
+    for (const item of list) {
+      const key = keySelector(item) || "(未設定)";
+      map.set(key, (map.get(key) || 0) + (Number(item.total_weight) || 0));
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+      .map(([key, value]) => `${key}: ${fmtWeight(Math.round(value * 100) / 100)}kg`);
+  }
+
+  function getDisplayRecords() {
+    if (!Array.isArray(sheetEntries)) return entries.slice();
+    const cloudIds = new Set(sheetEntries.map((record) => String(record.id)));
+    const localExtras = entries.filter((record) => !cloudIds.has(String(record.id)));
+    return [...sheetEntries, ...localExtras];
+  }
+
+  function isCloudRecordId(id) {
+    return Array.isArray(sheetEntries) && sheetEntries.some((record) => String(record.id) === String(id));
+  }
+
   function render() {
-    const base = sheetEntries ?? entries;
+    const base = getDisplayRecords();
     const list = filtered(base);
     const summary = computeSummary(list);
     const monthLabel = monthEl.value ? `${monthEl.value} の` : "";
-    summaryEl.textContent = `${monthLabel}表示件数 ${summary.count}件 / 合計 ${fmtWeight(summary.total)}kg` + (summary.parts.length ? `（${summary.parts.join(" / ")}）` : "");
+    const byField = buildBreakdown(list, (item) => item.field);
+    const byGrade = buildBreakdown(list, (item) => item.grade);
+
+    summaryEl.innerHTML = `
+      <div class="summaryGrid">
+        <div class="summaryCard">
+          <div class="summaryCard__label">件数 / 合計</div>
+          <div class="summaryCard__value">${monthLabel} ${summary.count}件 / ${fmtWeight(summary.total)}kg</div>
+          <div class="summaryCard__meta">${summary.parts.join(" / ") || "-"}</div>
+        </div>
+        <div class="summaryCard">
+          <div class="summaryCard__label">圃場別</div>
+          <div class="summaryCard__meta">${byField.join(" / ") || "-"}</div>
+        </div>
+        <div class="summaryCard">
+          <div class="summaryCard__label">規格別</div>
+          <div class="summaryCard__meta">${byGrade.join(" / ") || "-"}</div>
+        </div>
+      </div>
+    `;
 
     listEl.innerHTML = "";
     const frag = document.createDocumentFragment();
@@ -621,29 +833,27 @@
             <div class="item__title">${escapeHtml(e.date)} / 圃場 ${escapeHtml(e.field)} / ${escapeHtml(e.grade)}</div>
             <div class="item__meta">入力者: ${escapeHtml(e.user)} / 合計: ${escapeHtml(fmtWeight(Number(e.total_weight) || 0))} kg</div>
           </div>
-          <div class="item__meta">${sheetEntries ? "Sheets" : "local"}</div>
+          <div class="item__meta">${sheetEntries && sheetEntries.some((record) => String(record.id) === String(e.id)) ? CLOUD_SOURCE_LABEL : "localStorage"}</div>
         </div>
         <div class="item__grid">
           <div class="kv"><div class="kv__k">重量一覧</div><div class="kv__v">${escapeHtml(weightsText || "-")}</div></div>
           <div class="kv"><div class="kv__k">メモ</div><div class="kv__v">${escapeHtml(e.memo || "-")}</div></div>
         </div>
-        ${sheetEntries ? "" : `
-          <div class="item__actions">
-            <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}">編集</button>
-            <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}">削除</button>
-          </div>
-        `}
+        <div class="item__actions">
+          <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}">編集</button>
+          <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}">削除</button>
+        </div>
       `;
       frag.appendChild(item);
     }
 
     listEl.appendChild(frag);
 
-    const src = sheetEntries ? "Sheets表示" : "localStorage表示";
+    const src = sheetEntries ? CLOUD_SOURCE_LABEL : "localStorage表示";
     const ep = getEndpoint();
     const endpointLabel = ep ? `endpoint: ${ep}` : "endpoint: 未設定";
     logSourceEl.textContent = `${src} / ${endpointLabel}`;
-    statusEl.textContent = ep ? `Sheets: 設定あり / local: ${entries.length}件 / ${endpointLabel}` : `Sheets: 未設定 / local: ${entries.length}件 / ${endpointLabel}`;
+    statusEl.textContent = `${src} / local: ${entries.length}件 / ${endpointLabel}`;
   }
 
   function ensureSubmitProxy() {
@@ -705,7 +915,7 @@
     dlgEdit.showModal();
   }
 
-  function commitEdit() {
+  async function commitEdit() {
     if (!editingId) return;
     const idx = entries.findIndex((x) => x.id === editingId);
     if (idx === -1) return;
@@ -725,7 +935,7 @@
     }
 
     const prev = entries[idx];
-    entries[idx] = {
+    const next = {
       ...prev,
       date,
       field,
@@ -736,14 +946,20 @@
       total_weight,
       updated_at: nowISO(),
     };
+    if (isCloudRecordId(editingId)) {
+      const saved = await updateCloudRecord(next);
+      sheetEntries = sheetEntries.map((record) => (record.id === saved.id ? saved : record));
+      upsertLocalRecord(saved);
+      saveLocal();
+      return saved;
+    }
 
+    entries[idx] = next;
     saveLocal();
-    render();
+    return next;
   }
 
   function handleListClick(ev) {
-    if (sheetEntries) return; // sheets表示中は編集不可（まずは読み取りのみ）
-
     const t = /** @type {HTMLElement} */ (ev.target);
     const btn = t.closest("button[data-act]");
     if (!btn) return;
@@ -758,13 +974,12 @@
     }
 
     if (act === "del") {
-      const e = entries.find((x) => x.id === id);
+      const base = sheetEntries ?? entries;
+      const e = base.find((x) => x.id === id);
       if (!e) return;
       const ok = confirm(`${e.date} の記録を削除しますか？`);
       if (!ok) return;
-      entries = entries.filter((x) => x.id !== id);
-      saveLocal();
-      render();
+      void deleteRecordById(id);
     }
   }
 
@@ -789,7 +1004,7 @@
   }
 
   function exportCsv() {
-    const base = sheetEntries ?? entries;
+    const base = getDisplayRecords();
     const list = filtered(base).slice().sort((a, b) => a.date.localeCompare(b.date, "ja"));
     const header = ["id","date","field","grade","weights","total_weight","user","memo","created_at","updated_at"].join(",");
     const lines = list.map((e) => [
@@ -813,7 +1028,7 @@
     const payload = {
       schema: 2,
       exportedAt: nowISO(),
-      entries,
+      entries: getDisplayRecords(),
     };
     downloadText("sakaki-harvest.json", JSON.stringify(payload, null, 2) + "\n", "application/json;charset=utf-8");
   }
@@ -1093,44 +1308,47 @@
       updated_at: nowISO(),
     };
 
-    // まずSheets保存を試みる
+    // まずCloudflare D1へ保存する
     try {
-      const transportHint = detectSafariIOS() ? "form送信" : "form送信";
-      setTransportMessage(transportHint);
-      toast("warn", "Sheetsへ保存中...");
-      const result = await postToSheets(buildPostPayload(entry));
-      if (result?.ok) {
-        toast("ok", "Sheets保存成功");
-        console.log("[Sheets] POST response =", result);
-        toast("ok", `送信完了 / 送信方式：${result.transport || transportHint}`);
-        toast("ok", `POSTレスポンス: ${JSON.stringify(result)}`);
-        toast("ok", `endpoint: ${getEndpoint()}`);
-        // localStorageはバックアップとしても保存しておく（重複を避けるため id を保持）
-        entries.push(entry);
-        saveLocal();
-        form.reset();
-        resetFormDefaults();
-        setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
-        updateTotal();
-        sheetEntries = null;
-        render();
-        window.setTimeout(async () => {
-          const refreshResult = await fetchFromSheets({ silent: false });
-          if (refreshResult?.ok) {
-            toast("ok", `Sheets再読込成功: ${refreshResult.count}件`);
-          } else {
-            toast("warn", "送信しました。シートを確認してください");
-          }
-        }, 1200);
-        return;
+      setTransportMessage("fetch");
+      toast("warn", "Cloudflareへ保存中...");
+      const savedRecord = await createCloudRecord(entry);
+      toast("ok", "Cloudflare保存成功");
+      console.log("[Cloudflare] POST response =", savedRecord);
+      console.log("[Cloudflare] endpoint =", getCloudRecordUrl());
+
+      const localBackup = entries.slice();
+      upsertLocalRecord(savedRecord);
+      form.reset();
+      resetFormDefaults();
+      setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
+      updateTotal();
+      sheetEntries = sheetEntries ? [savedRecord, ...sheetEntries.filter((record) => record.id !== savedRecord.id)] : [savedRecord];
+      entries = [
+        ...sheetEntries,
+        ...localBackup.filter((record) => !sheetEntries.some((cloudRecord) => cloudRecord.id === record.id)),
+      ];
+      saveLocal();
+      render();
+
+      if (getEndpoint()) {
+        void postToSheets(buildPostPayload(savedRecord));
       }
-      throw new Error(`GAS error: ${String(result?.error || "unknown")} / http=${String(result?.httpStatus ?? "")} / raw=${String(result?.rawText ?? "")}`);
+      window.setTimeout(async () => {
+        const refreshResult = await fetchCloudRecords({ silent: false });
+        if (refreshResult?.ok) {
+      toast("ok", `D1再読込成功: ${refreshResult.count}件`);
+        } else {
+          toast("warn", "送信しました。D1を確認してください");
+        }
+      }, 1200);
+      return;
     } catch (err) {
       // 失敗時はlocalStorageへ一時保存
       entries.push(entry);
       saveLocal();
-      toast("err", `Sheets保存失敗：${String(err)}（localStorageに退避）`);
-      console.error("[Sheets] save failed =", err);
+      toast("err", `Cloudflare保存失敗：${String(err)}（localStorageに退避）`);
+      console.error("[Cloudflare] save failed =", err);
       form.reset();
       resetFormDefaults();
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
@@ -1211,7 +1429,7 @@
     qEl.addEventListener("input", render);
 
     btnClear.addEventListener("click", clearAllLocal);
-    btnFetch.addEventListener("click", fetchFromSheets);
+    btnFetch.addEventListener("click", () => fetchCloudRecords({ silent: false }));
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
     btnOcrRead.addEventListener("click", readOcrImage);
@@ -1272,9 +1490,17 @@
         return;
       }
       ev.preventDefault();
-      commitEdit();
-      editingId = null;
-      dlgEdit.close();
+      Promise.resolve(commitEdit())
+        .then(() => {
+          editingId = null;
+          dlgEdit.close();
+          render();
+          toast("ok", "更新しました");
+        })
+        .catch((err) => {
+          console.error("[Cloudflare] update error =", err);
+          toast("err", `更新失敗: ${String(err)}`);
+        });
     });
 
     btnSettings.addEventListener("click", openSettings);
@@ -1289,6 +1515,7 @@
 
     resetFormDefaults();
     render();
+    void fetchCloudRecords({ silent: true });
   }
 
   init();

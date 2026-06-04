@@ -1,0 +1,8 @@
+name = "sakaki-harvest-log"
+compatibility_date = "2026-06-04"
+pages_build_output_dir = "./docs"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "sakaki-harvest-log"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
