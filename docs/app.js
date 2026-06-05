@@ -1558,10 +1558,16 @@
 
     btnSettings.addEventListener("click", openSettings);
     btnSearchToggle.addEventListener("click", () => {
-      searchPanel.hidden = !searchPanel.hidden;
+      const next = !searchPanel.hidden;
+      searchPanel.hidden = !next;
+      if (next) managePanel.hidden = true;
+      btnSearchToggle.textContent = next ? "検索を閉じる" : "ログを探す";
     });
     btnManageToggle.addEventListener("click", () => {
-      managePanel.hidden = !managePanel.hidden;
+      const next = !managePanel.hidden;
+      managePanel.hidden = !next;
+      if (next) searchPanel.hidden = true;
+      btnManageToggle.textContent = next ? "管理を閉じる" : "管理";
     });
     settingsForm.addEventListener("submit", (ev) => {
       const submitter = /** @type {HTMLElement | null} */ (ev.submitter);
@@ -1576,6 +1582,8 @@
     render();
     searchPanel.hidden = true;
     managePanel.hidden = true;
+    btnSearchToggle.textContent = "ログを探す";
+    btnManageToggle.textContent = "管理";
     void fetchCloudRecords({ silent: true });
   }
 
