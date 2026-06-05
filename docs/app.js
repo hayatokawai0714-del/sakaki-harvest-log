@@ -797,6 +797,16 @@
       .map(([key, value]) => ({ key, total: Math.round(value.total * 100) / 100, count: value.count }));
   }
 
+  function formatFieldName(field) {
+    const raw = String(field || "").trim();
+    if (!raw) return "(未設定)";
+    return /工区$/.test(raw) ? raw : `${raw}工区`;
+  }
+
+  function formatSummaryLine(item) {
+    return `${item.key}：${item.count}件 / ${fmtWeight(item.total)}kg`;
+  }
+
   function getDisplayRecords() {
     if (!Array.isArray(sheetEntries)) return entries.slice();
     const cloudIds = new Set(sheetEntries.map((record) => String(record.id)));
@@ -811,24 +821,29 @@
   function render() {
     const base = getDisplayRecords();
     const list = filtered(base);
-    const summary = computeSummary(list);
     const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
-    const fieldGroups = buildAggregate(list, (item) => item.field);
+    const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
     const gradeGroups = buildAggregate(list, (item) => item.grade);
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
-        <div class="summaryCard">
+        <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別集計</div>
-          <div class="summaryCard__meta">${monthGroups.length ? monthGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
+          <div class="summaryCard__list">
+            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+          </div>
         </div>
-        <div class="summaryCard">
+        <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">圃場別</div>
-          <div class="summaryCard__meta">${fieldGroups.length ? fieldGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
+          <div class="summaryCard__list">
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+          </div>
         </div>
-        <div class="summaryCard">
+        <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
-          <div class="summaryCard__meta">${gradeGroups.length ? gradeGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
+          <div class="summaryCard__list">
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+          </div>
         </div>
       </div>
     `;
@@ -845,20 +860,25 @@
     }
 
     for (const e of list) {
-      const weightsText = (e.weights || []).map((w) => fmtWeight(w)).join(", ");
       const item = document.createElement("div");
       item.className = "item";
+      const fieldName = formatFieldName(e.field);
+      const memoText = String(e.memo || "").trim();
       item.innerHTML = `
         <div class="item__top">
-          <div>
-            <div class="item__title">${escapeHtml(e.date)} / 圃場 ${escapeHtml(e.field)} / ${escapeHtml(e.grade)}</div>
-            <div class="item__meta">入力者: ${escapeHtml(e.user)} / 合計: ${escapeHtml(fmtWeight(Number(e.total_weight) || 0))} kg</div>
+          <div class="item__body">
+            <div class="item__titleRow">
+              <span class="item__title">${escapeHtml(e.date)}</span>
+              <span class="item__pill">${escapeHtml(fieldName)}</span>
+              <span class="item__pill">${escapeHtml(e.grade)}</span>
+            </div>
+            <div class="item__metaRow">
+              <span>入力者: ${escapeHtml(e.user || "-")}</span>
+              <span>合計 ${escapeHtml(fmtWeight(Number(e.total_weight) || 0))}kg</span>
+            </div>
+            ${memoText ? `<div class="item__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
           </div>
-          <div class="item__meta">${sheetEntries && sheetEntries.some((record) => String(record.id) === String(e.id)) ? CLOUD_SOURCE_LABEL : "localStorage"}</div>
-        </div>
-        <div class="item__grid">
-          <div class="kv"><div class="kv__k">重量一覧</div><div class="kv__v">${escapeHtml(weightsText || "-")}</div></div>
-          <div class="kv"><div class="kv__k">メモ</div><div class="kv__v">${escapeHtml(e.memo || "-")}</div></div>
+          <div class="item__source">${sheetEntries && sheetEntries.some((record) => String(record.id) === String(e.id)) ? CLOUD_SOURCE_LABEL : "localStorage"}</div>
         </div>
         <div class="item__actions">
           <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}">編集</button>
