@@ -811,6 +811,28 @@
     return `${item.key}：${item.count}件 / ${fmtWeight(item.total)}kg`;
   }
 
+  function setSearchPanelOpen(open) {
+    searchPanel.hidden = !open;
+    btnSearchToggle.textContent = open ? "検索を閉じる" : "ログを探す";
+    btnSearchToggle.setAttribute("aria-expanded", String(open));
+    if (open) {
+      managePanel.hidden = true;
+      btnManageToggle.textContent = "管理";
+      btnManageToggle.setAttribute("aria-expanded", "false");
+    }
+  }
+
+  function setManagePanelOpen(open) {
+    managePanel.hidden = !open;
+    btnManageToggle.textContent = open ? "管理を閉じる" : "管理";
+    btnManageToggle.setAttribute("aria-expanded", String(open));
+    if (open) {
+      searchPanel.hidden = true;
+      btnSearchToggle.textContent = "ログを探す";
+      btnSearchToggle.setAttribute("aria-expanded", "false");
+    }
+  }
+
   function getDisplayRecords() {
     if (!Array.isArray(sheetEntries)) return entries.slice();
     const cloudIds = new Set(sheetEntries.map((record) => String(record.id)));
@@ -1557,22 +1579,19 @@
     });
 
     btnSettings.addEventListener("click", openSettings);
-    btnSearchToggle.addEventListener("click", () => {
-      const next = !searchPanel.hidden;
-      searchPanel.hidden = !next;
-      if (next) managePanel.hidden = true;
-      btnSearchToggle.textContent = next ? "検索を閉じる" : "ログを探す";
-      btnSearchToggle.setAttribute("aria-expanded", String(next));
-      btnManageToggle.setAttribute("aria-expanded", String(!managePanel.hidden));
-    });
-    btnManageToggle.addEventListener("click", () => {
-      const next = !managePanel.hidden;
-      managePanel.hidden = !next;
-      if (next) searchPanel.hidden = true;
-      btnManageToggle.textContent = next ? "管理を閉じる" : "管理";
-      btnManageToggle.setAttribute("aria-expanded", String(next));
-      btnSearchToggle.setAttribute("aria-expanded", String(!searchPanel.hidden));
-    });
+    document.addEventListener("click", (ev) => {
+      const target = /** @type {HTMLElement | null} */ (ev.target);
+      const searchBtn = target?.closest("#btnSearchToggle");
+      const manageBtn = target?.closest("#btnManageToggle");
+      if (searchBtn) {
+        ev.preventDefault();
+        setSearchPanelOpen(searchPanel.hidden);
+      }
+      if (manageBtn) {
+        ev.preventDefault();
+        setManagePanelOpen(managePanel.hidden);
+      }
+    }, true);
     settingsForm.addEventListener("submit", (ev) => {
       const submitter = /** @type {HTMLElement | null} */ (ev.submitter);
       const v = submitter?.getAttribute("value");
@@ -1584,12 +1603,8 @@
 
     resetFormDefaults();
     render();
-    searchPanel.hidden = true;
-    managePanel.hidden = true;
-    btnSearchToggle.textContent = "ログを探す";
-    btnManageToggle.textContent = "管理";
-    btnSearchToggle.setAttribute("aria-expanded", "false");
-    btnManageToggle.setAttribute("aria-expanded", "false");
+    setSearchPanelOpen(false);
+    setManagePanelOpen(false);
     void fetchCloudRecords({ silent: true });
   }
 

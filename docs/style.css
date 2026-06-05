@@ -22,13 +22,13 @@ body{
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-.top{position:sticky;top:0;z-index:10;background:rgba(246,247,251,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .top__inner{max-width:980px;margin:0 auto;padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .title{font-weight:900;letter-spacing:.02em}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .top__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-.top__actions .btn{padding:8px 12px;font-size:13px;min-width:112px;flex:0 0 auto}
-.toolbarPanel{max-width:980px;margin:0 auto 10px;padding:12px;display:grid;gap:10px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.top__actions .btn{padding:8px 12px;font-size:13px;min-width:112px;flex:0 0 auto;position:relative;z-index:21}
+.toolbarPanel{position:relative;z-index:15;max-width:980px;margin:0 auto 10px;padding:12px;display:grid;gap:10px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
 .toolbarPanel[hidden]{display:none!important}
 .toolbarPanel--search{grid-template-columns:1fr 1fr}
 .toolbarPanel--menu{grid-template-columns:1fr;max-width:420px}
