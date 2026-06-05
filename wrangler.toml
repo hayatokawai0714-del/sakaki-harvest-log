@@ -5,4 +5,4 @@ pages_build_output_dir = "docs"
 [[d1_databases]]
 binding = "DB"
 database_name = "sakaki-harvest-log"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "68572019-605b-4443-af7f-1a2ee7f50d4a"
