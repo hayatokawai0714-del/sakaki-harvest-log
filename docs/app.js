@@ -1562,12 +1562,16 @@
       searchPanel.hidden = !next;
       if (next) managePanel.hidden = true;
       btnSearchToggle.textContent = next ? "検索を閉じる" : "ログを探す";
+      btnSearchToggle.setAttribute("aria-expanded", String(next));
+      btnManageToggle.setAttribute("aria-expanded", String(!managePanel.hidden));
     });
     btnManageToggle.addEventListener("click", () => {
       const next = !managePanel.hidden;
       managePanel.hidden = !next;
       if (next) searchPanel.hidden = true;
       btnManageToggle.textContent = next ? "管理を閉じる" : "管理";
+      btnManageToggle.setAttribute("aria-expanded", String(next));
+      btnSearchToggle.setAttribute("aria-expanded", String(!searchPanel.hidden));
     });
     settingsForm.addEventListener("submit", (ev) => {
       const submitter = /** @type {HTMLElement | null} */ (ev.submitter);
@@ -1584,6 +1588,8 @@
     managePanel.hidden = true;
     btnSearchToggle.textContent = "ログを探す";
     btnManageToggle.textContent = "管理";
+    btnSearchToggle.setAttribute("aria-expanded", "false");
+    btnManageToggle.setAttribute("aria-expanded", "false");
     void fetchCloudRecords({ silent: true });
   }
 
