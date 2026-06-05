@@ -12,15 +12,30 @@
     <div class="top__inner">
       <div>
         <div class="title">榊収穫管理</div>
-        <div class="sub" id="status">localStorage</div>
+        <div class="sub">収穫ログを記録・確認</div>
       </div>
       <div class="top__actions">
-        <button class="btn" id="btnFetch" type="button">D1読込</button>
-        <button class="btn" id="btnExportCsv" type="button">CSV出力</button>
-        <button class="btn" id="btnExportJson" type="button">JSON出力</button>
-        <label class="btn btn--ghost" for="fileImport">JSON取込</label>
-        <input id="fileImport" class="sr-only" type="file" accept="application/json" />
+        <button class="btn btn--ghost" id="btnSearchToggle" type="button">ログを探す</button>
+        <button class="btn" id="btnManageToggle" type="button">管理</button>
       </div>
+    </div>
+    <div id="status" class="devOnly">localStorage</div>
+    <div id="searchPanel" class="toolbarPanel" hidden>
+      <div class="field">
+        <label for="month">月</label>
+        <input id="month" type="month" />
+      </div>
+      <div class="field">
+        <label for="q">検索</label>
+        <input id="q" type="search" placeholder="圃場・規格・入力者・メモで検索" />
+      </div>
+    </div>
+    <div id="managePanel" class="toolbarPanel" hidden>
+      <button class="btn" id="btnFetch" type="button">クラウドから読み込む</button>
+      <button class="btn" id="btnExportCsv" type="button">表計算用に出力</button>
+      <button class="btn" id="btnExportJson" type="button">バックアップを書き出す</button>
+      <label class="btn btn--ghost" for="fileImport">バックアップを読み込む</label>
+      <input id="fileImport" class="sr-only" type="file" accept="application/json" />
     </div>
   </header>
 
@@ -129,20 +144,7 @@
     <section class="card">
       <div class="card__hd">
         <h2>ログ一覧</h2>
-        <div class="hint">
-          <span id="logSource">localStorage表示</span>
-        </div>
-      </div>
-
-      <div class="filters">
-        <div class="field">
-          <label for="month">月</label>
-          <input id="month" type="month" />
-        </div>
-        <div class="field">
-          <label for="q">検索</label>
-          <input id="q" type="search" placeholder="圃場/規格/入力者/メモ" />
-        </div>
+        <div class="hint"><span id="logSource" class="devOnly">localStorage表示</span></div>
       </div>
 
       <div class="summary" id="summary"></div>

@@ -20,6 +20,10 @@
   const summaryEl = $("#summary");
   const listEl = $("#list");
   const logSourceEl = $("#logSource");
+  const searchPanel = $("#searchPanel");
+  const managePanel = $("#managePanel");
+  const btnSearchToggle = $("#btnSearchToggle");
+  const btnManageToggle = $("#btnManageToggle");
 
   const form = /** @type {HTMLFormElement} */ ($("#form"));
   const dateEl = /** @type {HTMLInputElement} */ ($("#date"));
@@ -830,19 +834,19 @@
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別集計</div>
           <div class="summaryCard__list">
-            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">圃場別</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine">${escapeHtml(formatSummaryLine(item))}</div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -864,21 +868,21 @@
       item.className = "item";
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
+      const totalWeight = fmtWeight(Number(e.total_weight) || 0);
       item.innerHTML = `
         <div class="item__top">
           <div class="item__body">
             <div class="item__titleRow">
-              <span class="item__title">${escapeHtml(e.date)}</span>
+              <span class="item__title">${escapeHtml(formatDateValue(e.date))}</span>
               <span class="item__pill">${escapeHtml(fieldName)}</span>
               <span class="item__pill">${escapeHtml(e.grade)}</span>
             </div>
             <div class="item__metaRow">
               <span>入力者: ${escapeHtml(e.user || "-")}</span>
-              <span>合計 ${escapeHtml(fmtWeight(Number(e.total_weight) || 0))}kg</span>
+              <span class="item__total">${escapeHtml(totalWeight)}kg</span>
             </div>
             ${memoText ? `<div class="item__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
           </div>
-          <div class="item__source">${sheetEntries && sheetEntries.some((record) => String(record.id) === String(e.id)) ? CLOUD_SOURCE_LABEL : "localStorage"}</div>
         </div>
         <div class="item__actions">
           <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}">編集</button>
@@ -1553,6 +1557,12 @@
     });
 
     btnSettings.addEventListener("click", openSettings);
+    btnSearchToggle.addEventListener("click", () => {
+      searchPanel.hidden = !searchPanel.hidden;
+    });
+    btnManageToggle.addEventListener("click", () => {
+      managePanel.hidden = !managePanel.hidden;
+    });
     settingsForm.addEventListener("submit", (ev) => {
       const submitter = /** @type {HTMLElement | null} */ (ev.submitter);
       const v = submitter?.getAttribute("value");
@@ -1564,6 +1574,8 @@
 
     resetFormDefaults();
     render();
+    searchPanel.hidden = true;
+    managePanel.hidden = true;
     void fetchCloudRecords({ silent: true });
   }
 
