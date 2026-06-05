@@ -83,3 +83,5 @@ npx wrangler pages secret put OPENAI_API_KEY --project-name sakaki-harvest-log
 - Google Sheets 連携はバックアップ用途として残しています
 - OCR は今回は保留です
 - 秘密情報は GitHub に保存しないでください
+
+CSV export uses BOM-prefixed UTF-8 for Excel.

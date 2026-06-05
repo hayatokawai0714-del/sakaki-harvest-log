@@ -1019,7 +1019,7 @@
       e.created_at,
       e.updated_at,
     ].map(escapeCsv).join(","));
-    const csv = [header, ...lines].join("\n") + "\n";
+    const csv = "\uFEFF" + [header, ...lines].join("\n") + "\n";
     const name = monthEl.value ? `sakaki-harvest-${monthEl.value}.csv` : "sakaki-harvest.csv";
     downloadText(name, csv, "text/csv;charset=utf-8");
   }
