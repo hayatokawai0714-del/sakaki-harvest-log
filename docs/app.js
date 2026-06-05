@@ -776,11 +776,25 @@
     const map = new Map();
     for (const item of list) {
       const key = keySelector(item) || "(未設定)";
-      map.set(key, (map.get(key) || 0) + (Number(item.total_weight) || 0));
+      map.set(key, (map.get(key) || { total: 0, count: 0 }).total + (Number(item.total_weight) || 0));
     }
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], "ja"))
-      .map(([key, value]) => `${key}: ${fmtWeight(Math.round(value * 100) / 100)}kg`);
+      .map(([key, value]) => `${key}: ${fmtWeight(Math.round(value.total * 100) / 100)}kg`);
+  }
+
+  function buildAggregate(list, keySelector) {
+    const map = new Map();
+    for (const item of list) {
+      const key = keySelector(item) || "(未設定)";
+      const current = map.get(key) || { total: 0, count: 0 };
+      current.total += Number(item.total_weight) || 0;
+      current.count += 1;
+      map.set(key, current);
+    }
+    return [...map.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], "ja"))
+      .map(([key, value]) => ({ key, total: Math.round(value.total * 100) / 100, count: value.count }));
   }
 
   function getDisplayRecords() {
@@ -798,30 +812,37 @@
     const base = getDisplayRecords();
     const list = filtered(base);
     const summary = computeSummary(list);
-    const monthLabel = monthEl.value ? `${monthEl.value} の` : "";
-    const byField = buildBreakdown(list, (item) => item.field);
-    const byGrade = buildBreakdown(list, (item) => item.grade);
+    const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
+    const fieldGroups = buildAggregate(list, (item) => item.field);
+    const gradeGroups = buildAggregate(list, (item) => item.grade);
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
         <div class="summaryCard">
-          <div class="summaryCard__label">件数 / 合計</div>
-          <div class="summaryCard__value">${monthLabel} ${summary.count}件 / ${fmtWeight(summary.total)}kg</div>
-          <div class="summaryCard__meta">${summary.parts.join(" / ") || "-"}</div>
+          <div class="summaryCard__label">月別集計</div>
+          <div class="summaryCard__meta">${monthGroups.length ? monthGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
         </div>
         <div class="summaryCard">
           <div class="summaryCard__label">圃場別</div>
-          <div class="summaryCard__meta">${byField.join(" / ") || "-"}</div>
+          <div class="summaryCard__meta">${fieldGroups.length ? fieldGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
         </div>
         <div class="summaryCard">
           <div class="summaryCard__label">規格別</div>
-          <div class="summaryCard__meta">${byGrade.join(" / ") || "-"}</div>
+          <div class="summaryCard__meta">${gradeGroups.length ? gradeGroups.map((item) => `${escapeHtml(item.key)}: ${item.count}件 / ${escapeHtml(fmtWeight(item.total))}kg`).join(" / ") : "集計データはありません"}</div>
         </div>
       </div>
     `;
 
     listEl.innerHTML = "";
     const frag = document.createDocumentFragment();
+    if (!list.length) {
+      const empty = document.createElement("div");
+      empty.className = "item item--empty";
+      empty.textContent = "集計データはありません";
+      frag.appendChild(empty);
+      listEl.appendChild(frag);
+      return;
+    }
 
     for (const e of list) {
       const weightsText = (e.weights || []).map((w) => fmtWeight(w)).join(", ");
