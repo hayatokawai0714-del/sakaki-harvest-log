@@ -1019,9 +1019,17 @@
       e.created_at,
       e.updated_at,
     ].map(escapeCsv).join(","));
-    const csv = "\uFEFF" + [header, ...lines].join("\n") + "\n";
+    const csv = [header, ...lines].join("\n") + "\n";
     const name = monthEl.value ? `sakaki-harvest-${monthEl.value}.csv` : "sakaki-harvest.csv";
-    downloadText(name, csv, "text/csv;charset=utf-8");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
   function exportJson() {
