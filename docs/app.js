@@ -7,6 +7,7 @@
   const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx2BZ_kbNmfCXn9NktB1_mdpAWxVI_xniTN8-W9AG-RVSrBwPp0tHWVYIDXz1QOcI_yLA/exec";
   const CLOUD_API_BASE = "/api/harvest-records";
   const CLOUD_SOURCE_LABEL = "Cloudflare D1";
+  const DEMO_URL_PARAM = "demo";
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
@@ -18,6 +19,7 @@
   const toastEl = $("#toast");
   const summaryEl = $("#summary");
   const listEl = $("#list");
+  const demoBannerEl = /** @type {HTMLElement | null} */ ($("#demoBanner"));
   const logSourceEl = $("#logSource");
   const statusEl = $("#status");
   const searchPanel = $("#searchPanel");
@@ -94,6 +96,31 @@
   let ocrCandidateDetails = [];
   let showAllLogs = false;
   let showAllPastMonths = false;
+  const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
+
+  function demoRecords() {
+    const rows = [
+      ["demo-1", "2026-06-05", "1", "40センチ", [10.0], 10.0],
+      ["demo-2", "2026-06-05", "2", "40センチ", [20.0], 20.0],
+      ["demo-3", "2026-06-05", "6", "40センチ", [30.0], 30.0],
+      ["demo-4", "2026-06-05", "7", "40センチ", [15.6], 15.6],
+      ["demo-5", "2026-06-06", "3下", "45センチ", [12.3], 12.3],
+      ["demo-6", "2026-06-06", "4", "40センチ", [18.7], 18.7],
+      ["demo-7", "2026-06-07", "3上", "大枝", [4.8], 4.8],
+    ];
+    return rows.map(([id, date, field, grade, weights, total]) => ({
+      id,
+      date,
+      field,
+      grade,
+      weights,
+      total_weight: total,
+      user: "サンプル",
+      memo: "",
+      created_at: `${date}T08:00:00.000Z`,
+      updated_at: `${date}T09:00:00.000Z`,
+    }));
+  }
 
   function nowISO() {
     return new Date().toISOString();
@@ -640,6 +667,10 @@
   }
 
   async function deleteRecordById(id) {
+    if (demoMode) {
+      toast("warn", "表示確認モードでは削除できません");
+      return;
+    }
     try {
       if (isCloudRecordId(id)) {
         await deleteCloudRecord(id);
@@ -656,6 +687,7 @@
   }
 
   function loadLocal() {
+    if (demoMode) return [];
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const p = safeParseJSON(raw);
@@ -686,8 +718,13 @@
   }
 
   function saveLocal() {
+    if (demoMode) return;
     const payload = { schema: 2, updatedAt: nowISO(), entries };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+  }
+
+  function demoRecordList() {
+    return demoRecords().map(normalizeBackendRecord);
   }
 
   function escapeHtml(s) {
@@ -1038,8 +1075,8 @@
           </div>
         </div>
         <div class="item__actions">
-          <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}">編集</button>
-          <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}">削除</button>
+          <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>編集</button>
+          <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>削除</button>
         </div>
       `;
       frag.appendChild(item);
@@ -1053,6 +1090,15 @@
     logSourceEl.textContent = `${src}`;
     statusEl.textContent = `${src} / ${endpointLabel}`;
     btnShowAll.textContent = showAllLogs ? "直近5件だけ表示" : "すべてのログを表示";
+    if (demoBannerEl) {
+      demoBannerEl.hidden = !demoMode;
+      demoBannerEl.textContent = demoMode ? "表示確認モード：ダミーデータを表示中です" : "";
+    }
+    btnFetch.disabled = demoMode;
+    btnExportCsv.disabled = false;
+    btnExportJson.disabled = false;
+    btnClear.disabled = demoMode;
+    form.querySelector('button[type="submit"]').disabled = demoMode;
   }
 
   function ensureSubmitProxy() {
@@ -1098,6 +1144,10 @@
   }
 
   function openEdit(id) {
+    if (demoMode) {
+      toast("warn", "表示確認モードでは編集できません");
+      return;
+    }
     const e = entries.find((x) => x.id === id);
     if (!e) return;
     editingId = id;
@@ -1115,6 +1165,9 @@
   }
 
   async function commitEdit() {
+    if (demoMode) {
+      throw new Error("表示確認モードでは保存できません");
+    }
     if (!editingId) return;
     const idx = entries.findIndex((x) => x.id === editingId);
     if (idx === -1) return;
@@ -1485,6 +1538,10 @@
 
   async function handleSave(ev) {
     ev.preventDefault();
+    if (demoMode) {
+      toast("warn", "表示確認モードでは保存できません");
+      return;
+    }
 
     const date = dateEl.value.trim();
     const field = fieldEl.value;
@@ -1624,10 +1681,15 @@
   }
 
   function init() {
-    entries = loadLocal();
+    entries = demoMode ? demoRecordList() : loadLocal();
     sheetEntries = null;
 
     monthEl.value = monthStr();
+    if (demoMode) {
+      const demoDate = entries[0]?.date || todayStr();
+      monthEl.value = String(demoDate).slice(0, 7);
+      dateEl.value = demoDate;
+    }
 
     form.addEventListener("submit", handleSave);
     btnAddWeight.addEventListener("click", () => {
@@ -1747,10 +1809,13 @@
     });
 
     resetFormDefaults();
+    if (demoMode) {
+      dateEl.value = entries[0]?.date || todayStr();
+    }
     render();
     setSearchPanelOpen(false);
     setManagePanelOpen(false);
-    void fetchCloudRecords({ silent: true });
+    if (!demoMode) void fetchCloudRecords({ silent: true });
   }
 
   init();

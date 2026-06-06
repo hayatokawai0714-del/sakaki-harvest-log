@@ -100,6 +100,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .toast--ok{display:block;background:rgba(22,163,74,.08);border-color:rgba(22,163,74,.20);color:var(--ok)}
 .toast--warn{display:block;background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.25);color:#8a5a00}
 .toast--err{display:block;background:rgba(225,29,72,.08);border-color:rgba(225,29,72,.20);color:var(--danger)}
+.demoBanner{margin:0 16px 12px;padding:8px 10px;border-radius:12px;border:1px solid rgba(37,99,235,.18);background:rgba(37,99,235,.06);color:var(--primary2);font-size:12px;font-weight:800}
 
 .labelRow{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .weights{display:flex;flex-direction:column;gap:10px}
