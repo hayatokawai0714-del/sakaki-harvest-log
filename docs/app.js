@@ -1091,8 +1091,8 @@
                   return `<div class="summaryDayRows__row">
                     <div class="summaryDayRows__main">
                       <span class="summaryDayRows__date">${escapeHtml(formatDateMonthDay(item.date))}</span>
-                      <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}"><span class="badgeDot"></span>${escapeHtml(row.fieldName)}</span>
-                      <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}">${escapeHtml(row.gradeName)}</span>
+                      <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}">${escapeHtml(row.fieldName)}</span>
+                      <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}"><span class="badgeDot"></span>${escapeHtml(row.gradeName)}</span>
                       <span class="summaryLine__count summaryLine__count--weight">${escapeHtml(row.weight)}kg</span>
                     </div>
                     ${row.memoText ? `<div class="summaryDayRows__memo">メモ：${escapeHtml(row.memoText)}</div>` : ""}
@@ -1106,13 +1106,13 @@
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">工区別</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -1141,8 +1141,8 @@
           <div class="item__body">
             <div class="item__titleRow">
               <span class="item__title">${dateText}</span>
-              <span class="item__pill item__pill--field ${getFieldBadgeClass(e.field)}"><span class="badgeDot"></span>${escapeHtml(fieldName)}</span>
-              <span class="item__pill item__pill--grade ${getGradeBadgeClass(e.grade)}">${escapeHtml(formatGradeBadge(e.grade))}</span>
+              <span class="item__pill item__pill--field ${getFieldBadgeClass(e.field)}">${escapeHtml(fieldName)}</span>
+              <span class="item__pill item__pill--grade ${getGradeBadgeClass(e.grade)}"><span class="badgeDot"></span>${escapeHtml(formatGradeBadge(e.grade))}</span>
               <span class="item__total">${escapeHtml(totalWeight)}kg</span>
             </div>
             <div class="item__metaRow">
