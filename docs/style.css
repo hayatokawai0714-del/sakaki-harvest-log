@@ -22,18 +22,16 @@ body{
 }
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
-.top{position:sticky;top:0;z-index:20;background:rgba(246,247,251,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.top__inner{max-width:980px;margin:0 auto;padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.title{font-weight:900;letter-spacing:.02em}
-.sub{font-size:12px;color:var(--muted);margin-top:2px}
-.top__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:center}
-.top__actions .btn{padding:8px 12px;font-size:13px;min-width:112px;flex:0 0 auto;position:relative;z-index:21}
 .toolbarPanel{position:relative;z-index:15;max-width:980px;margin:0 auto 10px;padding:12px;display:grid;gap:10px;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
 .toolbarPanel[hidden]{display:none!important}
 .toolbarPanel--search{grid-template-columns:1fr 1fr}
 .toolbarPanel--menu{grid-template-columns:1fr;max-width:420px}
 .toolbarPanel .field{margin:0}
 .devOnly{display:none}
+.manageLaunchers{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
+.manageLaunchers .btn{padding:8px 12px;font-size:13px;min-width:112px}
+.dangerZone{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.dangerZone__title{font-size:12px;color:var(--muted);font-weight:800}
 
 .wrap{max-width:980px;margin:14px auto;padding:0 16px 60px;display:flex;flex-direction:column;gap:14px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow)}
@@ -189,6 +187,8 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryEmpty{padding:10px 12px;border-radius:12px;background:#fff;border:1px dashed rgba(15,23,42,.16);font-size:13px;color:var(--muted);font-weight:700}
 
 .list{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.listTools{padding:0 16px 10px;display:flex;justify-content:flex-start}
+.listTools .btn{padding:8px 12px;font-size:13px}
 .item{border:1px solid rgba(15,23,42,.10);border-radius:16px;padding:12px;background:#fff}
 .item--empty{color:var(--muted);font-weight:800;text-align:center;padding:18px 12px}
 .item__top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -200,6 +200,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .item__total{font-size:18px;font-weight:900;color:var(--text)}
 .item__memo{font-size:12px;color:var(--muted);line-height:1.5;-webkit-line-clamp:2;display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden}
 .item__actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.item .btn{padding:7px 10px;font-size:12px}
 
 .dialog::backdrop{background:rgba(2,6,23,.45)}
 .dialog{border:none;background:transparent;padding:0}
@@ -212,14 +213,11 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .iconBtn:hover{border-color:rgba(37,99,235,.4)}
 
 @media (max-width: 720px){
-  .top__inner{flex-direction:column}
-  .top__actions{justify-content:flex-start;width:100%}
-  .top__actions .btn{flex:1 1 112px;min-width:0}
   .toolbarPanel--search,.toolbarPanel--menu{grid-template-columns:1fr}
   .toolbarPanel--menu{max-width:none}
   .row{grid-template-columns:1fr}
-  .choiceChip{flex:1 1 calc(50% - 8px)}
-  .btn--save{width:100%;min-width:0}
+.choiceChip{flex:1 1 calc(50% - 8px)}
+.btn--save{width:100%;min-width:0}
   .item__top{flex-direction:column}
   .item__metaRow{align-items:flex-start}
   .ocrCandidate{grid-template-columns:1fr}

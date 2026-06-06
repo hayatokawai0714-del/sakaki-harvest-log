@@ -8,37 +8,6 @@
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <header class="top">
-    <div class="top__inner">
-      <div>
-        <div class="title">榊収穫管理</div>
-        <div class="sub">収穫ログを記録・確認</div>
-      </div>
-      <div class="top__actions">
-        <button class="btn btn--ghost" id="btnSearchToggle" type="button">ログを探す</button>
-        <button class="btn" id="btnManageToggle" type="button">管理</button>
-      </div>
-    </div>
-    <div id="status" class="devOnly">localStorage</div>
-    <div id="searchPanel" class="toolbarPanel toolbarPanel--search" hidden>
-      <div class="field">
-        <label for="month">月</label>
-        <input id="month" type="month" />
-      </div>
-      <div class="field">
-        <label for="q">検索</label>
-        <input id="q" type="search" placeholder="圃場・規格・入力者・メモで検索" />
-      </div>
-    </div>
-    <div id="managePanel" class="toolbarPanel toolbarPanel--menu" hidden>
-      <button class="btn" id="btnFetch" type="button">クラウドから読み込む</button>
-      <button class="btn" id="btnExportCsv" type="button">表計算用に出力</button>
-      <button class="btn" id="btnExportJson" type="button">バックアップを書き出す</button>
-      <label class="btn btn--ghost" for="fileImport">バックアップを読み込む</label>
-      <input id="fileImport" class="sr-only" type="file" accept="application/json" />
-    </div>
-  </header>
-
   <main class="wrap">
     <section class="card">
       <div class="card__hd">
@@ -144,19 +113,44 @@
     <section class="card">
       <div class="card__hd">
         <h2>ログ一覧</h2>
-        <div class="hint"><span id="logSource" class="devOnly">localStorage表示</span></div>
+        <div class="hint"><span id="logSource" class="devOnly">この端末に保存中</span></div>
       </div>
-
       <div class="summary" id="summary"></div>
+      <div class="listTools">
+        <button class="btn btn--ghost btn--sm" id="btnShowAll" type="button">すべてのログを表示</button>
+      </div>
       <div id="list" class="list" aria-label="収穫ログ一覧"></div>
     </section>
 
-    <section class="card card--danger">
+    <section class="card card--danger" id="manageSection">
       <div class="card__hd">
-        <h2>端末データ</h2>
-        <div class="hint">必要なときだけ使ってください</div>
+        <h2>管理・設定</h2>
+        <div class="hint">必要なときだけ開いてください</div>
       </div>
-      <div class="actions">
+      <div class="manageLaunchers">
+        <button class="btn btn--ghost" id="btnSearchToggle" type="button">ログを探す</button>
+        <button class="btn" id="btnManageToggle" type="button">管理</button>
+      </div>
+      <div id="status" class="devOnly">localStorage</div>
+      <div id="searchPanel" class="toolbarPanel toolbarPanel--search" hidden>
+        <div class="field">
+          <label for="month">月</label>
+          <input id="month" type="month" />
+        </div>
+        <div class="field">
+          <label for="q">検索</label>
+          <input id="q" type="search" placeholder="圃場・規格・入力者・メモで検索" />
+        </div>
+      </div>
+      <div id="managePanel" class="toolbarPanel toolbarPanel--menu" hidden>
+        <button class="btn" id="btnFetch" type="button">最新データを読み込む</button>
+        <button class="btn" id="btnExportCsv" type="button">Excel用に出力</button>
+        <button class="btn" id="btnExportJson" type="button">バックアップを作成</button>
+        <label class="btn btn--ghost" for="fileImport">バックアップを復元</label>
+        <input id="fileImport" class="sr-only" type="file" accept="application/json" />
+      </div>
+      <div class="dangerZone">
+        <div class="dangerZone__title">危険な操作</div>
         <button class="btn btn--danger" id="btnClear" type="button">端末内データをすべて削除</button>
       </div>
     </section>

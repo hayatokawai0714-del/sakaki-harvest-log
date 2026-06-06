@@ -15,15 +15,17 @@
 
   const $ = (sel) => /** @type {HTMLElement} */ (document.querySelector(sel));
 
-  const statusEl = $("#status");
   const toastEl = $("#toast");
   const summaryEl = $("#summary");
   const listEl = $("#list");
   const logSourceEl = $("#logSource");
+  const statusEl = $("#status");
   const searchPanel = $("#searchPanel");
   const managePanel = $("#managePanel");
   const btnSearchToggle = $("#btnSearchToggle");
   const btnManageToggle = $("#btnManageToggle");
+  const btnShowAll = $("#btnShowAll");
+  const manageSection = $("#manageSection");
 
   const form = /** @type {HTMLFormElement} */ ($("#form"));
   const dateEl = /** @type {HTMLInputElement} */ ($("#date"));
@@ -90,6 +92,7 @@
   let ocrCandidateValues = [];
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
+  let showAllLogs = false;
 
   function nowISO() {
     return new Date().toISOString();
@@ -743,6 +746,21 @@
     eTotalWeightEl.textContent = fmtWeightOne(sumWeights(ws));
   }
 
+  function focusLastWeightInput(container) {
+    const inputs = [...container.querySelectorAll("input")];
+    const last = inputs[inputs.length - 1];
+    if (last) {
+      last.focus();
+      last.select?.();
+    }
+  }
+
+  function setShowAllLogs(next) {
+    showAllLogs = next;
+    btnShowAll.textContent = showAllLogs ? "直近5件だけ表示" : "すべてのログを表示";
+    render();
+  }
+
   function filtered(list) {
     const month = monthEl.value.trim();
     const q = qEl.value.trim().toLowerCase();
@@ -859,6 +877,7 @@
   function render() {
     const base = getDisplayRecords();
     const list = filtered(base);
+    const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
     const dayGroups = buildAggregate(base, (item) => String(item.date || ""));
     const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
@@ -905,7 +924,7 @@
 
     listEl.innerHTML = "";
     const frag = document.createDocumentFragment();
-    if (!list.length) {
+    if (!visibleList.length) {
       const empty = document.createElement("div");
       empty.className = "item item--empty";
       empty.textContent = "集計データはありません";
@@ -914,7 +933,7 @@
       return;
     }
 
-    for (const e of list) {
+    for (const e of visibleList) {
       const item = document.createElement("div");
       item.className = "item";
       const fieldName = formatFieldName(e.field);
@@ -945,11 +964,12 @@
 
     listEl.appendChild(frag);
 
-    const src = sheetEntries ? CLOUD_SOURCE_LABEL : "localStorage表示";
+    const src = sheetEntries ? CLOUD_SOURCE_LABEL : "この端末に保存中";
     const ep = getEndpoint();
     const endpointLabel = ep ? `endpoint: ${ep}` : "endpoint: 未設定";
-    logSourceEl.textContent = `${src} / ${endpointLabel}`;
-    statusEl.textContent = `${src} / local: ${entries.length}件 / ${endpointLabel}`;
+    logSourceEl.textContent = `${src}`;
+    statusEl.textContent = `${src} / ${endpointLabel}`;
+    btnShowAll.textContent = showAllLogs ? "直近5件だけ表示" : "すべてのログを表示";
   }
 
   function ensureSubmitProxy() {
@@ -1524,8 +1544,9 @@
 
     form.addEventListener("submit", handleSave);
     btnAddWeight.addEventListener("click", () => {
-      const { row } = makeWeightRow(updateTotal, updateTotal);
+      const { row, input } = makeWeightRow(updateTotal, updateTotal);
       weightsWrap.appendChild(row);
+      requestAnimationFrame(() => input.focus());
     });
     btnRenameOther.addEventListener("click", renameOtherUser);
 
@@ -1544,6 +1565,8 @@
       renderOcrCandidates([]);
       setOcrStatus("候補をクリアしました");
     });
+
+    btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
 
     ocrImageEl.addEventListener("change", async () => {
       const file = ocrImageEl.files?.[0] || null;
@@ -1582,8 +1605,9 @@
     listEl.addEventListener("click", handleListClick);
 
     btnEAddWeight.addEventListener("click", () => {
-      const { row } = makeWeightRow(updateETotal, updateETotal);
+      const { row, input } = makeWeightRow(updateETotal, updateETotal);
       eWeightsWrap.appendChild(row);
+      requestAnimationFrame(() => input.focus());
     });
 
     editForm.addEventListener("submit", (ev) => {
