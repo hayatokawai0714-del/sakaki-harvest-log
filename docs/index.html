@@ -42,8 +42,7 @@
   <main class="wrap">
     <section class="card">
       <div class="card__hd">
-        <h2>新規入力</h2>
-        <div class="hint">D1保存を優先（失敗時はlocalStorageに退避）</div>
+        <h2>収穫記録</h2>
       </div>
 
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -56,7 +55,7 @@
           </div>
           <div class="field">
             <label for="field">圃場</label>
-            <select id="field" name="field" required>
+            <select id="field" name="field" class="choiceSelect" required>
               <option value="1">1</option>
               <option value="2">2</option>
               <option value="3上">3上</option>
@@ -72,7 +71,7 @@
         <div class="row">
           <div class="field">
             <label for="grade">規格</label>
-            <select id="grade" name="grade" required>
+            <select id="grade" name="grade" class="choiceSelect" required>
               <option value="40センチ">40センチ</option>
               <option value="45センチ">45センチ</option>
               <option value="大枝">大枝</option>
@@ -80,7 +79,7 @@
           </div>
           <div class="field">
             <label for="user">入力者</label>
-            <select id="user" name="user" required>
+            <select id="user" name="user" class="choiceSelect" required>
               <option value="河合">河合</option>
               <option value="担当者">担当者</option>
             </select>
@@ -90,31 +89,32 @@
           </div>
         </div>
 
-        <div class="field">
-          <label for="ocrImage">写真を選択 / 撮影</label>
-          <input id="ocrImage" type="file" accept="image/*" capture="environment" />
-          <div class="hint">ホワイトボードの写真から重量を読み取ります。OCR結果は保存前に修正できます。</div>
-        </div>
-
-        <div class="ocrPanel" aria-live="polite">
-          <div class="ocrPanel__preview">
-            <img id="ocrPreview" alt="OCRプレビュー" />
-          </div>
-          <div class="ocrPanel__meta">
-            <div id="ocrStatus" class="hint">未読み取り</div>
-            <div class="actions">
-              <button class="btn btn--ghost" id="btnOcrRead" type="button">読み取る</button>
-              <button class="btn btn--ghost" id="btnOcrApply" type="button">重量一覧へ反映</button>
+        <details class="ocrToggle" id="ocrToggle">
+          <summary class="ocrToggle__summary">カメラで重量を読む</summary>
+          <div class="ocrPanel" aria-live="polite">
+            <div class="field">
+              <label for="ocrImage">写真を選択 / 撮影</label>
+              <input id="ocrImage" type="file" accept="image/*" capture="environment" />
+            </div>
+            <div class="ocrPanel__preview">
+              <img id="ocrPreview" alt="OCRプレビュー" />
+            </div>
+            <div class="ocrPanel__meta">
+              <div id="ocrStatus" class="hint">未読み取り</div>
+              <div class="actions">
+                <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から重量を読み取る</button>
+                <button class="btn btn--ghost" id="btnOcrApply" type="button">この重量を追加する</button>
+              </div>
+            </div>
+            <div class="ocrPanel__results">
+              <div class="labelRow">
+                <label>読み取った重量候補</label>
+                <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">候補クリア</button>
+              </div>
+              <div id="ocrCandidates" class="ocrCandidates"></div>
             </div>
           </div>
-          <div class="ocrPanel__results">
-            <div class="labelRow">
-              <label>読み取った重量候補</label>
-              <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">候補クリア</button>
-            </div>
-            <div id="ocrCandidates" class="ocrCandidates"></div>
-          </div>
-        </div>
+        </details>
 
         <div class="field">
           <div class="labelRow">
@@ -134,8 +134,8 @@
         </div>
 
         <div class="actions">
-          <button class="btn btn--primary" type="submit">保存</button>
-          <button class="btn" type="reset">リセット</button>
+          <button class="btn btn--primary btn--save" type="submit">保存する</button>
+          <button class="btn btn--secondary" type="reset">入力をリセット</button>
           <button class="btn btn--ghost" id="btnSettings" type="button">設定</button>
         </div>
       </form>
@@ -153,11 +153,11 @@
 
     <section class="card card--danger">
       <div class="card__hd">
-        <h2>危険操作</h2>
-        <div class="hint">取り消しできません</div>
+        <h2>端末データ</h2>
+        <div class="hint">必要なときだけ使ってください</div>
       </div>
       <div class="actions">
-        <button class="btn btn--danger" id="btnClear" type="button">localStorage全削除</button>
+        <button class="btn btn--danger" id="btnClear" type="button">端末内データをすべて削除</button>
       </div>
     </section>
   </main>
@@ -177,7 +177,7 @@
           </div>
           <div class="field">
             <label for="eField">圃場</label>
-            <select id="eField" name="field" required>
+            <select id="eField" name="field" class="choiceSelect" required>
               <option value="1">1</option>
               <option value="2">2</option>
               <option value="3上">3上</option>
@@ -193,7 +193,7 @@
         <div class="row">
           <div class="field">
             <label for="eGrade">規格</label>
-            <select id="eGrade" name="grade" required>
+            <select id="eGrade" name="grade" class="choiceSelect" required>
               <option value="40センチ">40センチ</option>
               <option value="45センチ">45センチ</option>
               <option value="大枝">大枝</option>
@@ -201,7 +201,7 @@
           </div>
           <div class="field">
             <label for="eUser">入力者</label>
-            <select id="eUser" name="user" required>
+            <select id="eUser" name="user" class="choiceSelect" required>
               <option value="河合">河合</option>
               <option value="担当者">担当者</option>
             </select>
