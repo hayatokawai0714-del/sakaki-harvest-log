@@ -1098,10 +1098,7 @@
                     ${row.memoText ? `<div class="summaryDayRows__memo">メモ：${escapeHtml(row.memoText)}</div>` : ""}
                   </div>`;
                 }).join("");
-                return `<div class="summaryDay">
-                  <div class="summaryDay__date">${escapeHtml(formatDayGroupTitle(group.dateKey))}</div>
-                  <div class="summaryDayRows">${lines}</div>
-                </div>`;
+                return `<div class="summaryDayRows">${lines}</div>`;
               }).join("") : `<div class="summaryEmpty">集計データはありません</div>`
             ) : `<div class="summaryEmpty">日別集計は月表示で確認できます</div>`}
           </div>
