@@ -898,6 +898,8 @@
   function formatFieldName(field) {
     const raw = String(field || "").trim();
     if (!raw) return "(未設定)";
+    if (/^3上$/.test(raw) || /^3工区上$/.test(raw)) return "3工区上";
+    if (/^3下$/.test(raw) || /^3工区下$/.test(raw)) return "3工区下";
     return /工区$/.test(raw) ? raw : `${raw}工区`;
   }
 
@@ -910,8 +912,9 @@
   }
 
   function getFieldBadgeClass(field) {
-    const raw = String(field || "").replace(/工区$/, "");
-    return `item__badge--field item__badge--field-${raw || "na"}`;
+    const raw = String(field || "").trim().replace(/工区$/, "");
+    const key = raw === "3上" ? "3上" : raw === "3下" ? "3下" : raw || "na";
+    return `item__badge--field item__badge--field-${key}`;
   }
 
   function getGradeBadgeClass(grade) {
