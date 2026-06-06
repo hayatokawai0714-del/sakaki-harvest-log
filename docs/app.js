@@ -93,8 +93,7 @@
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
   let showAllLogs = false;
-  let showAllDailySummaries = false;
-  let showAllDayFieldSummaries = false;
+  let showAllPastMonths = false;
 
   function nowISO() {
     return new Date().toISOString();
@@ -826,11 +825,15 @@
       .map(([key, value]) => ({ key, total: Math.round(value.total * 100) / 100, count: value.count }));
   }
 
-  function formatDateShort(dateValue) {
+  function formatDateJapanese(dateValue) {
     const value = String(dateValue || "");
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return value;
     return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`;
+  }
+
+  function formatDateShort(dateValue) {
+    return formatDateJapanese(dateValue);
   }
 
   function formatDateShortMonthDay(dateValue) {
@@ -838,6 +841,13 @@
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return value;
     return `${Number(match[2])}月${Number(match[3])}日`;
+  }
+
+  function formatMonthJapanese(monthKey) {
+    const value = String(monthKey || "");
+    const match = value.match(/^(\d{4})-(\d{2})$/);
+    if (!match) return value;
+    return `${Number(match[1])}年${Number(match[2])}月`;
   }
 
   function formatFieldName(field) {
@@ -868,25 +878,28 @@
   }
 
   function formatSummaryLineMonth(item) {
-    return `${item.key}　${fmtWeightOne(item.total)}kg`;
+    return `${formatMonthJapanese(item.key)}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
   }
 
-  function formatSummaryLineDay(item) {
-    return `${formatDateShortMonthDay(item.key)}　${fmtWeightOne(item.total)}kg`;
+  function formatSummaryLineField(item) {
+    return `${formatFieldName(item.key)}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
   }
 
-  function formatSummaryLineDayField(item) {
-    const [dateKey, fieldKey] = String(item.key).split("__");
-    return `${formatDateShortMonthDay(dateKey)}　${fieldKey}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
+  function formatSummaryLineGrade(item) {
+    return `${String(item.key || "(未設定)")}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
   }
 
-  function setShowAllDailySummaries(next) {
-    showAllDailySummaries = next;
-    render();
+  function formatDayGroupTitle(dateKey) {
+    return formatDateShortMonthDay(dateKey);
   }
 
-  function setShowAllDayFieldSummaries(next) {
-    showAllDayFieldSummaries = next;
+  function formatDayEntryLine(item) {
+    const fieldName = formatFieldName(item.field);
+    return `${fieldName}　${fmtWeightOne(item.total)}kg`;
+  }
+
+  function setShowAllPastMonths(next) {
+    showAllPastMonths = next;
     render();
   }
 
@@ -927,46 +940,65 @@
     const base = getDisplayRecords();
     const list = filtered(base);
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
-    const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
-    const dayGroups = buildAggregate(base, (item) => String(item.date || "")).slice().reverse();
+    const currentMonthKey = monthEl.value || monthStr();
+    const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7)).slice().reverse();
     const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
-    const dayFieldGroups = buildAggregate(base, (item) => `${String(item.date || "")}__${formatFieldName(item.field)}`).slice().reverse();
     const gradeGroups = buildAggregate(list, (item) => item.grade);
-    const visibleDayGroups = dayGroups.slice(0, showAllDailySummaries ? dayGroups.length : 5);
-    const visibleDayFieldGroups = dayFieldGroups.slice(0, showAllDayFieldSummaries ? dayFieldGroups.length : 5);
+    const currentMonthGroup = monthGroups.find((item) => item.key === currentMonthKey) || null;
+    const pastMonthGroups = monthGroups.filter((item) => item.key !== currentMonthKey);
+    const visiblePastMonths = showAllPastMonths ? pastMonthGroups : [];
+    const monthDays = base
+      .filter((item) => String(item.date || "").startsWith(currentMonthKey))
+      .slice()
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+        return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""), "ja");
+      });
+    const dayGroups = [];
+    const dayMap = new Map();
+    for (const item of monthDays) {
+      const dateKey = String(item.date || "");
+      if (!dayMap.has(dateKey)) {
+        const group = { dateKey, total: 0, rows: [] };
+        dayMap.set(dateKey, group);
+        dayGroups.push(group);
+      }
+      const group = dayMap.get(dateKey);
+      group.total += Number(item.total_weight) || 0;
+      group.rows.push(item);
+    }
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別集計</div>
           <div class="summaryCard__list">
-            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">収穫${escapeHtml(item.count)}回 / ${escapeHtml(fmtWeightOne(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${currentMonthGroup ? `<div class="summaryLine"><span class="summaryLabel">${escapeHtml(formatMonthJapanese(currentMonthGroup.key))}</span><span class="summaryLine__count"><strong>${escapeHtml(fmtWeightOne(currentMonthGroup.total))}kg</strong>　収穫${escapeHtml(currentMonthGroup.count)}回</span></div>` : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${visiblePastMonths.length ? visiblePastMonths.map((item) => `<div class="summaryLine summaryLine--past"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : ""}
+            ${pastMonthGroups.length ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllMonths">${showAllPastMonths ? "過去の月別集計を閉じる" : "過去の月別集計を表示"}</button>` : ""}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">日別集計</div>
           <div class="summaryCard__list">
-            ${visibleDayGroups.length ? visibleDayGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatDateShortMonthDay(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
-            ${dayGroups.length > 5 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllDaily">${showAllDailySummaries ? "直近5日分だけ表示" : "すべての日別集計を表示"}</button>` : ""}
+            ${dayGroups.length ? dayGroups.map((group) => {
+              const lines = group.rows.length > 1
+                ? group.rows.map((item) => `<div class="summaryDayRows__row"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}"><span class="badgeDot"></span>${escapeHtml(formatFieldName(item.field))}</span><span class="summaryLine__count summaryLine__count--weight">${escapeHtml(fmtWeightOne(Number(item.total_weight) || 0))}kg</span></div>`).join("")
+                : `<div class="summaryDayRows__row"><span class="item__pill item__pill--field ${getFieldBadgeClass(group.rows[0]?.field)}"><span class="badgeDot"></span>${escapeHtml(formatFieldName(group.rows[0]?.field))}</span><span class="summaryLine__count summaryLine__count--weight">${escapeHtml(fmtWeightOne(group.total))}kg</span></div>`;
+              return `<div class="summaryDay"><div class="summaryDay__date">${escapeHtml(formatDayGroupTitle(group.dateKey))}</div><div class="summaryDayRows">${lines}</div></div>`;
+            }).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">工区別</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
-          </div>
-        </div>
-        <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">日付・工区別</div>
-          <div class="summaryCard__list">
-            ${visibleDayFieldGroups.length ? visibleDayFieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatSummaryLineDayField(item))}</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
-            ${dayFieldGroups.length > 5 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllDayField">${showAllDayFieldSummaries ? "直近5件だけ表示" : "すべての日付・工区別を表示"}</button>` : ""}
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -989,14 +1021,14 @@
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
       const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
-      const dateText = escapeHtml(formatDateShort(e.date));
+      const dateText = escapeHtml(formatDateJapanese(e.date));
       item.innerHTML = `
         <div class="item__top">
           <div class="item__body">
             <div class="item__titleRow">
               <span class="item__title">${dateText}</span>
-              <span class="item__pill ${getFieldBadgeClass(e.field)}"><span class="badgeDot"></span>${escapeHtml(fieldName)}</span>
-              <span class="item__pill ${getGradeBadgeClass(e.grade)}">${escapeHtml(formatGradeBadge(e.grade))}</span>
+              <span class="item__pill item__pill--field ${getFieldBadgeClass(e.field)}"><span class="badgeDot"></span>${escapeHtml(fieldName)}</span>
+              <span class="item__pill item__pill--grade ${getGradeBadgeClass(e.grade)}">${escapeHtml(formatGradeBadge(e.grade))}</span>
             </div>
             <div class="item__metaRow">
               <span>入力者: ${escapeHtml(e.user || "-")}</span>
@@ -1624,10 +1656,8 @@
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
-      const dailyBtn = target?.closest("#btnShowAllDaily");
-      const dayFieldBtn = target?.closest("#btnShowAllDayField");
-      if (dailyBtn) setShowAllDailySummaries(!showAllDailySummaries);
-      if (dayFieldBtn) setShowAllDayFieldSummaries(!showAllDayFieldSummaries);
+      const monthBtn = target?.closest("#btnShowAllMonths");
+      if (monthBtn) setShowAllPastMonths(!showAllPastMonths);
     });
 
     ocrImageEl.addEventListener("change", async () => {
