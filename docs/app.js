@@ -1086,6 +1086,7 @@
                   const row = formatSummaryLineDayRow(item);
                   return `<div class="summaryDayRows__row">
                     <div class="summaryDayRows__main">
+                      <span class="summaryDayRows__date">${escapeHtml(formatDateMonthDay(item.date))}</span>
                       <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}"><span class="badgeDot"></span>${escapeHtml(row.fieldName)}</span>
                       <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}">${escapeHtml(row.gradeName)}</span>
                       <span class="summaryLine__count summaryLine__count--weight">${escapeHtml(row.weight)}kg</span>
