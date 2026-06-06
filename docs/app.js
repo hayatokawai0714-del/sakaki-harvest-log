@@ -119,6 +119,11 @@
     return (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, "");
   }
 
+  function fmtWeightOne(n) {
+    if (!Number.isFinite(n)) return "0.0";
+    return (Math.round(n * 10) / 10).toFixed(1);
+  }
+
   function sumWeights(ws) {
     const s = ws.reduce((acc, x) => acc + (Number.isFinite(x) ? x : 0), 0);
     return Math.round(s * 100) / 100;
@@ -730,12 +735,12 @@
 
   function updateTotal() {
     const ws = getWeightsFrom(weightsWrap);
-    totalWeightEl.textContent = fmtWeight(sumWeights(ws));
+    totalWeightEl.textContent = fmtWeightOne(sumWeights(ws));
   }
 
   function updateETotal() {
     const ws = getWeightsFrom(eWeightsWrap);
-    eTotalWeightEl.textContent = fmtWeight(sumWeights(ws));
+    eTotalWeightEl.textContent = fmtWeightOne(sumWeights(ws));
   }
 
   function filtered(list) {
@@ -801,6 +806,13 @@
       .map(([key, value]) => ({ key, total: Math.round(value.total * 100) / 100, count: value.count }));
   }
 
+  function formatDateShort(dateValue) {
+    const value = String(dateValue || "");
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value;
+    return `${Number(match[2])}/${Number(match[3])}`;
+  }
+
   function formatFieldName(field) {
     const raw = String(field || "").trim();
     if (!raw) return "(未設定)";
@@ -808,7 +820,7 @@
   }
 
   function formatSummaryLine(item) {
-    return `${item.key}：${item.count}件 / ${fmtWeight(item.total)}kg`;
+    return `${item.key}：収穫${item.count}回 / ${fmtWeightOne(item.total)}kg`;
   }
 
   function setSearchPanelOpen(open) {
@@ -848,7 +860,9 @@
     const base = getDisplayRecords();
     const list = filtered(base);
     const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
+    const dayGroups = buildAggregate(base, (item) => String(item.date || ""));
     const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
+    const dayFieldGroups = buildAggregate(base, (item) => `${String(item.date || "")}__${formatFieldName(item.field)}`);
     const gradeGroups = buildAggregate(list, (item) => item.grade);
 
     summaryEl.innerHTML = `
@@ -856,19 +870,34 @@
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別集計</div>
           <div class="summaryCard__list">
-            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">圃場別</div>
+          <div class="summaryCard__label">日別集計</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${dayGroups.length ? dayGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatDateShort(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+          </div>
+        </div>
+        <div class="summaryCard summaryCard--list">
+          <div class="summaryCard__label">工区別</div>
+          <div class="summaryCard__list">
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+          </div>
+        </div>
+        <div class="summaryCard summaryCard--list">
+          <div class="summaryCard__label">日付・工区別</div>
+          <div class="summaryCard__list">
+            ${dayFieldGroups.length ? dayFieldGroups.map((item) => {
+              const [dateKey, fieldKey] = String(item.key).split("__");
+              return `<div class="summaryLine"><span>${escapeHtml(formatDateShort(dateKey))} / ${escapeHtml(fieldKey)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`;
+            }).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(item.count)}件 / ${escapeHtml(fmtWeight(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -890,7 +919,7 @@
       item.className = "item";
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
-      const totalWeight = fmtWeight(Number(e.total_weight) || 0);
+      const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
       item.innerHTML = `
         <div class="item__top">
           <div class="item__body">

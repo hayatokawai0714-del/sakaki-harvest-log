@@ -107,6 +107,10 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .weights{display:flex;flex-direction:column;gap:10px}
 .weightItem{display:flex;gap:10px;align-items:center}
 .weightItem input{flex:1}
+.weightItem .btn--sm{padding:7px 9px;font-size:12px;color:var(--muted);border-color:rgba(15,23,42,.10);background:#fafafa}
+.weightFooter{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.weightFooter .total{flex:1 1 180px;margin-top:0;padding:10px 12px}
+.btn--addWeight{flex:0 0 auto;min-width:150px;padding:10px 14px;border-color:rgba(21,128,61,.20);background:rgba(21,128,61,.06);color:#14532d}
 
 .total{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding:12px;border-radius:14px;background:rgba(37,99,235,.06);border:1px solid rgba(37,99,235,.18)}
 .total__label{font-size:12px;color:var(--muted);font-weight:800}
