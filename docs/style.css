@@ -183,6 +183,9 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryCard__value{font-size:16px;font-weight:900;margin-top:4px}
 .summaryCard__meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
 .summaryCard__list{display:flex;flex-direction:column;gap:7px}
+.summaryModeSwitch{display:flex;gap:8px;flex-wrap:wrap}
+.summaryModeSwitch .btn.is-active{background:rgba(21,128,61,.12);border-color:rgba(21,128,61,.30);color:#14532d}
+.summarySubLabel{font-size:12px;font-weight:900;color:var(--muted);padding-top:2px}
 .summaryLine{
   display:flex;
   align-items:center;
@@ -208,8 +211,10 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryLabel{font-weight:900}
 .summaryDay{display:flex;flex-direction:column;gap:6px;padding:9px 10px;border-radius:12px;background:#fff;border:1px solid rgba(15,23,42,.08)}
 .summaryDay__date{font-size:14px;font-weight:900;color:var(--text)}
-.summaryDayRows{display:flex;flex-direction:column;gap:6px}
-.summaryDayRows__row{display:flex;align-items:center;gap:10px;padding:2px 0}
+.summaryDayRows{display:flex;flex-direction:column;gap:7px}
+.summaryDayRows__row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:2px 0}
+.summaryDayRows__left{display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-width:0}
+.summaryDayRows__memo{grid-column:1 / -1;font-size:12px;color:var(--muted);line-height:1.4;padding-left:2px}
 .summaryDayRows__row .summaryLine__count--weight{margin-left:auto;font-size:17px;font-weight:700}
 .summaryEmpty{padding:10px 12px;border-radius:12px;background:#fff;border:1px dashed rgba(15,23,42,.16);font-size:13px;color:var(--muted);font-weight:700}
 .summaryToggle{align-self:flex-start;width:auto;min-width:0;padding:8px 10px}
@@ -276,6 +281,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .btn--save{width:100%;min-width:0}
   .item__top{flex-direction:column}
   .item__metaRow{align-items:flex-start}
-  .summaryDayRows__row{align-items:flex-start}
+  .summaryDayRows__row{grid-template-columns:1fr;align-items:flex-start}
+  .summaryDayRows__row .summaryLine__count--weight{margin-left:0}
   .ocrCandidate{grid-template-columns:1fr}
 }

@@ -96,6 +96,7 @@
   let ocrCandidateDetails = [];
   let showAllLogs = false;
   let showAllPastMonths = false;
+  let summaryMode = "month";
   const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
 
   function demoRecords() {
@@ -107,6 +108,9 @@
       ["demo-5", "2026-06-06", "3下", "45センチ", [12.3], 12.3],
       ["demo-6", "2026-06-06", "4", "40センチ", [18.7], 18.7],
       ["demo-7", "2026-06-07", "3上", "大枝", [4.8], 4.8],
+      ["demo-8", "2026-07-02", "1", "40センチ", [11.2], 11.2],
+      ["demo-9", "2026-07-02", "3下", "45センチ", [13.4], 13.4],
+      ["demo-10", "2026-07-03", "6", "大枝", [6.5], 6.5],
     ];
     return rows.map(([id, date, field, grade, weights, total]) => ({
       id,
@@ -153,6 +157,10 @@
   function fmtWeightOne(n) {
     if (!Number.isFinite(n)) return "0.0";
     return (Math.round(n * 10) / 10).toFixed(1);
+  }
+
+  function formatWeight(weight) {
+    return fmtWeightOne(Number(weight) || 0);
   }
 
   function sumWeights(ws) {
@@ -926,17 +934,51 @@
     return `${String(item.key || "(未設定)")}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
   }
 
+  function getRecordYear(record) {
+    return String(record?.date || "").slice(0, 4);
+  }
+
+  function getRecordMonth(record) {
+    return String(record?.date || "").slice(0, 7);
+  }
+
+  function filterRecordsByMonth(records, selectedMonth) {
+    const month = String(selectedMonth || "").slice(0, 7);
+    return records.filter((record) => String(record?.date || "").startsWith(month));
+  }
+
+  function filterRecordsByYear(records, selectedYear) {
+    const year = String(selectedYear || "").slice(0, 4);
+    return records.filter((record) => String(record?.date || "").startsWith(year));
+  }
+
   function formatDayGroupTitle(dateKey) {
     return formatDateShortMonthDay(dateKey);
   }
 
-  function formatDayEntryLine(item) {
+  function formatSummaryLineDay(item) {
+    return `${formatDateShortMonthDay(item.dateKey)}`;
+  }
+
+  function formatSummaryLineDayRow(item) {
     const fieldName = formatFieldName(item.field);
-    return `${fieldName}　${fmtWeightOne(item.total)}kg`;
+    const gradeName = String(item.grade || "(未設定)");
+    const memoText = String(item.memo || "").trim();
+    return {
+      fieldName,
+      gradeName,
+      weight: formatWeight(item.total_weight),
+      memoText,
+    };
   }
 
   function setShowAllPastMonths(next) {
     showAllPastMonths = next;
+    render();
+  }
+
+  function setSummaryMode(next) {
+    summaryMode = next;
     render();
   }
 
@@ -975,17 +1017,20 @@
 
   function render() {
     const base = getDisplayRecords();
-    const list = filtered(base);
+    const selectedMonth = monthEl.value || monthStr();
+    const selectedYear = selectedMonth.slice(0, 4);
+    const monthRecords = filterRecordsByMonth(base, selectedMonth);
+    const yearRecords = filterRecordsByYear(base, selectedYear);
+    const list = summaryMode === "year" ? yearRecords : monthRecords;
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
-    const currentMonthKey = monthEl.value || monthStr();
-    const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7)).slice().reverse();
+    const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
+    const yearMonthGroups = buildAggregate(yearRecords, (item) => getRecordMonth(item));
     const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
     const gradeGroups = buildAggregate(list, (item) => item.grade);
-    const currentMonthGroup = monthGroups.find((item) => item.key === currentMonthKey) || null;
-    const pastMonthGroups = monthGroups.filter((item) => item.key !== currentMonthKey);
-    const visiblePastMonths = showAllPastMonths ? pastMonthGroups : [];
-    const monthDays = base
-      .filter((item) => String(item.date || "").startsWith(currentMonthKey))
+    const currentMonthGroup = monthGroups.find((item) => item.key === selectedMonth) || null;
+    const annualGroup = yearRecords.length ? { key: selectedYear, total: sumWeights(yearRecords.map((item) => Number(item.total_weight) || 0)), count: yearRecords.length } : null;
+    const visiblePastMonths = showAllPastMonths ? monthGroups.filter((item) => item.key !== selectedMonth) : [];
+    const monthDays = monthRecords
       .slice()
       .sort((a, b) => {
         if (a.date !== b.date) return a.date < b.date ? 1 : -1;
@@ -1008,34 +1053,61 @@
     summaryEl.innerHTML = `
       <div class="summaryGrid">
         <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">月別集計</div>
+          <div class="summaryCard__label">${summaryMode === "year" ? "年間合計" : "月別集計"}</div>
+          <div class="summaryModeSwitch">
+            <button class="btn btn--ghost btn--sm ${summaryMode === "month" ? "is-active" : ""}" type="button" id="btnSummaryMonth">月表示</button>
+            <button class="btn btn--ghost btn--sm ${summaryMode === "year" ? "is-active" : ""}" type="button" id="btnSummaryYear">年表示</button>
+          </div>
           <div class="summaryCard__list">
-            ${currentMonthGroup ? `<div class="summaryLine"><span class="summaryLabel">${escapeHtml(formatMonthJapanese(currentMonthGroup.key))}</span><span class="summaryLine__count"><strong>${escapeHtml(fmtWeightOne(currentMonthGroup.total))}kg</strong>　収穫${escapeHtml(currentMonthGroup.count)}回</span></div>` : `<div class="summaryEmpty">集計データはありません</div>`}
-            ${visiblePastMonths.length ? visiblePastMonths.map((item) => `<div class="summaryLine summaryLine--past"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : ""}
-            ${pastMonthGroups.length ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllMonths">${showAllPastMonths ? "過去の月別集計を閉じる" : "過去の月別集計を表示"}</button>` : ""}
+            ${summaryMode === "month" ? (
+              currentMonthGroup
+                ? `<div class="summaryLine"><span class="summaryLabel">${escapeHtml(formatMonthJapanese(currentMonthGroup.key))}</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(currentMonthGroup.total))}kg</strong>　収穫${escapeHtml(currentMonthGroup.count)}回</span></div>`
+                : `<div class="summaryEmpty">集計データはありません</div>`
+            ) : (
+              annualGroup
+                ? `<div class="summaryLine"><span class="summaryLabel">${escapeHtml(selectedYear)}年</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(annualGroup.total))}kg</strong>　収穫${escapeHtml(annualGroup.count)}回</span></div>`
+                : `<div class="summaryEmpty">集計データはありません</div>`
+            )}
+            ${summaryMode === "month" && visiblePastMonths.length ? visiblePastMonths.map((item) => `<div class="summaryLine summaryLine--past"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : ""}
+            ${summaryMode === "month" && monthGroups.length > 1 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllMonths">${showAllPastMonths ? "過去の月別集計を閉じる" : "過去の月別集計を表示"}</button>` : ""}
+            ${summaryMode === "year" ? `<div class="summarySubLabel">月別内訳</div>` : ""}
+            ${summaryMode === "year" ? yearMonthGroups.length ? yearMonthGroups.map((item) => `<div class="summaryLine summaryLine--past"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>` : ""}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">日別集計</div>
           <div class="summaryCard__list">
-            ${dayGroups.length ? dayGroups.map((group) => {
-              const lines = group.rows.length > 1
-                ? group.rows.map((item) => `<div class="summaryDayRows__row"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}"><span class="badgeDot"></span>${escapeHtml(formatFieldName(item.field))}</span><span class="summaryLine__count summaryLine__count--weight">${escapeHtml(fmtWeightOne(Number(item.total_weight) || 0))}kg</span></div>`).join("")
-                : `<div class="summaryDayRows__row"><span class="item__pill item__pill--field ${getFieldBadgeClass(group.rows[0]?.field)}"><span class="badgeDot"></span>${escapeHtml(formatFieldName(group.rows[0]?.field))}</span><span class="summaryLine__count summaryLine__count--weight">${escapeHtml(fmtWeightOne(group.total))}kg</span></div>`;
-              return `<div class="summaryDay"><div class="summaryDay__date">${escapeHtml(formatDayGroupTitle(group.dateKey))}</div><div class="summaryDayRows">${lines}</div></div>`;
-            }).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${summaryMode === "month" ? (
+              dayGroups.length ? dayGroups.map((group) => {
+                const lines = group.rows.map((item) => {
+                  const row = formatSummaryLineDayRow(item);
+                  return `<div class="summaryDayRows__row">
+                    <div class="summaryDayRows__left">
+                      <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}"><span class="badgeDot"></span>${escapeHtml(row.fieldName)}</span>
+                      <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}">${escapeHtml(row.gradeName)}</span>
+                    </div>
+                    <span class="summaryLine__count summaryLine__count--weight">${escapeHtml(row.weight)}kg</span>
+                    ${row.memoText ? `<div class="summaryDayRows__memo">メモ：${escapeHtml(row.memoText)}</div>` : ""}
+                  </div>`;
+                }).join("");
+                return `<div class="summaryDay">
+                  <div class="summaryDay__date">${escapeHtml(formatDayGroupTitle(group.dateKey))}</div>
+                  <div class="summaryDayRows">${lines}</div>
+                </div>`;
+              }).join("") : `<div class="summaryEmpty">集計データはありません</div>`
+            ) : `<div class="summaryEmpty">日別集計は月表示で確認できます</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">工区別</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -1719,7 +1791,11 @@
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
       const monthBtn = target?.closest("#btnShowAllMonths");
+      const modeMonthBtn = target?.closest("#btnSummaryMonth");
+      const modeYearBtn = target?.closest("#btnSummaryYear");
       if (monthBtn) setShowAllPastMonths(!showAllPastMonths);
+      if (modeMonthBtn) setSummaryMode("month");
+      if (modeYearBtn) setSummaryMode("year");
     });
 
     ocrImageEl.addEventListener("change", async () => {
