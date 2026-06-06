@@ -1138,10 +1138,10 @@
               <span class="item__title">${dateText}</span>
               <span class="item__pill item__pill--field ${getFieldBadgeClass(e.field)}"><span class="badgeDot"></span>${escapeHtml(fieldName)}</span>
               <span class="item__pill item__pill--grade ${getGradeBadgeClass(e.grade)}">${escapeHtml(formatGradeBadge(e.grade))}</span>
+              <span class="item__total">${escapeHtml(totalWeight)}kg</span>
             </div>
             <div class="item__metaRow">
               <span>入力者: ${escapeHtml(e.user || "-")}</span>
-              <span class="item__total">${escapeHtml(totalWeight)}kg</span>
             </div>
             ${memoText ? `<div class="item__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
           </div>
