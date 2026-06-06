@@ -198,7 +198,11 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   font-weight:800;
   color:var(--text);
 }
-.summaryLine > :first-child{flex:1 1 auto;min-width:0}
+.summaryLine > :first-child{
+  flex:0 0 auto;
+  width:fit-content;
+  min-width:0;
+}
 .summaryLine__count,
 .item__total,
 .summaryDayRows__main .summaryLine__count--weight{
@@ -213,6 +217,17 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   white-space:nowrap;
 }
 .summaryLine__count--weight{font-size:16px;font-weight:800;color:#0f172a}
+.summaryCard--list > .summaryLine .item__pill--field{
+  display:inline-flex;
+  width:fit-content;
+  flex:0 0 auto;
+  padding:4px 8px;
+  white-space:nowrap;
+}
+.summaryCard--list > .summaryLine .item__pill--field .badgeDot{display:none}
+.summaryCard--list > .summaryLine .item__pill--field{
+  font-weight:700;
+}
 .summaryLabel{font-weight:900}
 .summaryDayRows{display:flex;flex-direction:column;gap:8px}
 .summaryDayRows__row{
