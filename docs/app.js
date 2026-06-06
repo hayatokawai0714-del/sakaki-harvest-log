@@ -93,6 +93,8 @@
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
   let showAllLogs = false;
+  let showAllDailySummaries = false;
+  let showAllDayFieldSummaries = false;
 
   function nowISO() {
     return new Date().toISOString();
@@ -828,7 +830,14 @@
     const value = String(dateValue || "");
     const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if (!match) return value;
-    return `${Number(match[2])}/${Number(match[3])}`;
+    return `${Number(match[1])}年${Number(match[2])}月${Number(match[3])}日`;
+  }
+
+  function formatDateShortMonthDay(dateValue) {
+    const value = String(dateValue || "");
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return value;
+    return `${Number(match[2])}月${Number(match[3])}日`;
   }
 
   function formatFieldName(field) {
@@ -837,8 +846,48 @@
     return /工区$/.test(raw) ? raw : `${raw}工区`;
   }
 
-  function formatSummaryLine(item) {
-    return `${item.key}：収穫${item.count}回 / ${fmtWeightOne(item.total)}kg`;
+  function formatFieldBadge(field) {
+    return formatFieldName(field);
+  }
+
+  function formatGradeBadge(grade) {
+    return String(grade || "(未設定)");
+  }
+
+  function getFieldBadgeClass(field) {
+    const raw = String(field || "").replace(/工区$/, "");
+    return `item__badge--field item__badge--field-${raw || "na"}`;
+  }
+
+  function getGradeBadgeClass(grade) {
+    const raw = String(grade || "");
+    if (raw.includes("40")) return "item__badge--grade-40";
+    if (raw.includes("45")) return "item__badge--grade-45";
+    if (raw.includes("大枝")) return "item__badge--grade-big";
+    return "item__badge--grade-na";
+  }
+
+  function formatSummaryLineMonth(item) {
+    return `${item.key}　${fmtWeightOne(item.total)}kg`;
+  }
+
+  function formatSummaryLineDay(item) {
+    return `${formatDateShortMonthDay(item.key)}　${fmtWeightOne(item.total)}kg`;
+  }
+
+  function formatSummaryLineDayField(item) {
+    const [dateKey, fieldKey] = String(item.key).split("__");
+    return `${formatDateShortMonthDay(dateKey)}　${fieldKey}　${fmtWeightOne(item.total)}kg　収穫${item.count}回`;
+  }
+
+  function setShowAllDailySummaries(next) {
+    showAllDailySummaries = next;
+    render();
+  }
+
+  function setShowAllDayFieldSummaries(next) {
+    showAllDayFieldSummaries = next;
+    render();
   }
 
   function setSearchPanelOpen(open) {
@@ -879,44 +928,45 @@
     const list = filtered(base);
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(base, (item) => String(item.date || "").slice(0, 7));
-    const dayGroups = buildAggregate(base, (item) => String(item.date || ""));
+    const dayGroups = buildAggregate(base, (item) => String(item.date || "")).slice().reverse();
     const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
-    const dayFieldGroups = buildAggregate(base, (item) => `${String(item.date || "")}__${formatFieldName(item.field)}`);
+    const dayFieldGroups = buildAggregate(base, (item) => `${String(item.date || "")}__${formatFieldName(item.field)}`).slice().reverse();
     const gradeGroups = buildAggregate(list, (item) => item.grade);
+    const visibleDayGroups = dayGroups.slice(0, showAllDailySummaries ? dayGroups.length : 5);
+    const visibleDayFieldGroups = dayFieldGroups.slice(0, showAllDayFieldSummaries ? dayFieldGroups.length : 5);
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別集計</div>
           <div class="summaryCard__list">
-            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${monthGroups.length ? monthGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">収穫${escapeHtml(item.count)}回 / ${escapeHtml(fmtWeightOne(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">日別集計</div>
           <div class="summaryCard__list">
-            ${dayGroups.length ? dayGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatDateShort(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${visibleDayGroups.length ? visibleDayGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatDateShortMonthDay(item.key))}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${dayGroups.length > 5 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllDaily">${showAllDailySummaries ? "直近5日分だけ表示" : "すべての日別集計を表示"}</button>` : ""}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">工区別</div>
           <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine"><span class="item__pill ${getFieldBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">日付・工区別</div>
           <div class="summaryCard__list">
-            ${dayFieldGroups.length ? dayFieldGroups.map((item) => {
-              const [dateKey, fieldKey] = String(item.key).split("__");
-              return `<div class="summaryLine"><span>${escapeHtml(formatDateShort(dateKey))} / ${escapeHtml(fieldKey)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`;
-            }).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${visibleDayFieldGroups.length ? visibleDayFieldGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(formatSummaryLineDayField(item))}</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${dayFieldGroups.length > 5 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllDayField">${showAllDayFieldSummaries ? "直近5件だけ表示" : "すべての日付・工区別を表示"}</button>` : ""}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">規格別</div>
           <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill ${getGradeBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(fmtWeightOne(item.total))}kg / 収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
           </div>
         </div>
       </div>
@@ -939,13 +989,14 @@
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
       const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
+      const dateText = escapeHtml(formatDateShort(e.date));
       item.innerHTML = `
         <div class="item__top">
           <div class="item__body">
             <div class="item__titleRow">
-              <span class="item__title">${escapeHtml(formatDateValue(e.date))}</span>
-              <span class="item__pill">${escapeHtml(fieldName)}</span>
-              <span class="item__pill">${escapeHtml(e.grade)}</span>
+              <span class="item__title">${dateText}</span>
+              <span class="item__pill ${getFieldBadgeClass(e.field)}"><span class="badgeDot"></span>${escapeHtml(fieldName)}</span>
+              <span class="item__pill ${getGradeBadgeClass(e.grade)}">${escapeHtml(formatGradeBadge(e.grade))}</span>
             </div>
             <div class="item__metaRow">
               <span>入力者: ${escapeHtml(e.user || "-")}</span>
@@ -1443,10 +1494,15 @@
 
       const localBackup = entries.slice();
       upsertLocalRecord(savedRecord);
-      form.reset();
       resetFormDefaults();
+      dateEl.value = date;
+      fieldEl.value = field;
+      userEl.value = user;
+      gradeEl.value = "";
+      memoEl.value = "";
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
       updateTotal();
+      requestAnimationFrame(() => focusLastWeightInput(weightsWrap));
       sheetEntries = sheetEntries ? [savedRecord, ...sheetEntries.filter((record) => record.id !== savedRecord.id)] : [savedRecord];
       entries = [
         ...sheetEntries,
@@ -1473,7 +1529,6 @@
       saveLocal();
       toast("err", `Cloudflare保存失敗：${String(err)}（localStorageに退避）`);
       console.error("[Cloudflare] save failed =", err);
-      form.reset();
       resetFormDefaults();
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
       updateTotal();
@@ -1567,6 +1622,13 @@
     });
 
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
+    summaryEl.addEventListener("click", (ev) => {
+      const target = /** @type {HTMLElement | null} */ (ev.target);
+      const dailyBtn = target?.closest("#btnShowAllDaily");
+      const dayFieldBtn = target?.closest("#btnShowAllDayField");
+      if (dailyBtn) setShowAllDailySummaries(!showAllDailySummaries);
+      if (dayFieldBtn) setShowAllDayFieldSummaries(!showAllDayFieldSummaries);
+    });
 
     ocrImageEl.addEventListener("change", async () => {
       const file = ocrImageEl.files?.[0] || null;
