@@ -888,6 +888,10 @@
     return `${Number(match[2])}月${Number(match[3])}日`;
   }
 
+  function formatDateMonthDay(dateValue) {
+    return formatDateShortMonthDay(dateValue);
+  }
+
   function formatMonthJapanese(monthKey) {
     const value = String(monthKey || "");
     const match = value.match(/^(\d{4})-(\d{2})$/);
