@@ -148,7 +148,8 @@
         <button class="btn" id="btnExportCsv" type="button">Excel用に出力</button>
         <button class="btn" id="btnExportJson" type="button">バックアップを作成</button>
         <label class="btn btn--ghost" for="fileImport">バックアップを復元</label>
-        <button class="btn btn--danger" id="btnClearTests" type="button">テストデータだけ削除</button>
+        <button class="btn btn--danger" id="btnClearTests" type="button" disabled>テストデータ削除（一時停止中）</button>
+        <div class="hint">※アグリノート取込データを残す安全化対応中です</div>
         <input id="fileImport" class="sr-only" type="file" accept="application/json" />
       </div>
       <div class="dangerZone">

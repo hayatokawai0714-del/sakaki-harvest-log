@@ -1434,10 +1434,17 @@
     const byId = new Map(entries.map((e) => [e.id, e]));
     for (const e of imported) byId.set(e.id, e);
     entries = [...byId.values()];
+    const latestImported = imported
+      .slice()
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0] || null;
+    if (latestImported?.date) {
+      monthEl.value = String(latestImported.date).slice(0, 7);
+      selectedSummaryYear = String(latestImported.date).slice(0, 4);
+    }
 
     saveLocal();
     render();
-    toast("ok", "JSON取り込み完了しました");
+    toast("ok", `JSON取り込み完了しました（${imported.length}件）`);
   }
 
   function clearAllLocal() {
