@@ -99,6 +99,8 @@
   let showDayBreakdown = false;
   let summaryMode = "month";
   let selectedSummaryYear = "";
+  let openSummaryYear = "";
+  let openSummaryMonth = "";
   const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
 
   function demoRecords() {
@@ -909,6 +911,10 @@
     return `${Number(match[2])}月`;
   }
 
+  function formatMonthLabel(monthKey) {
+    return formatMonthShort(monthKey);
+  }
+
   function formatFieldName(field) {
     const raw = String(field || "").trim();
     if (!raw) return "(未設定)";
@@ -957,6 +963,29 @@
       duplicateCount,
       period,
     };
+  }
+
+  function renderSummaryMonthLogs(records) {
+    if (!Array.isArray(records) || !records.length) return `<div class="summaryEmpty">集計データはありません</div>`;
+    return records
+      .slice()
+      .sort((a, b) => {
+        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+        return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""), "ja");
+      })
+      .map((item) => {
+        const memoText = String(item.memo || "").trim();
+        return `<div class="summaryMonthLog">
+          <div class="summaryMonthLog__main">
+            <span class="summaryMonthLog__date">${escapeHtml(formatDateMonthDay(item.date))}</span>
+            <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}">${escapeHtml(formatFieldName(item.field))}</span>
+            <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}"><span class="badgeDot"></span>${escapeHtml(formatGradeBadge(item.grade))}</span>
+            <span class="summaryMonthLog__weight">${escapeHtml(fmtWeightOne(Number(item.total_weight) || 0))}kg</span>
+          </div>
+          ${memoText ? `<div class="summaryMonthLog__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
+        </div>`;
+      })
+      .join("");
   }
 
   function formatFieldBadge(field) {
@@ -1081,12 +1110,7 @@
 
   function render() {
     const base = getDisplayRecords();
-    const availableMonths = getAvailableMonths(base);
-    let selectedMonth = monthEl.value || monthStr();
-    if (availableMonths.length && (!selectedMonth || !availableMonths.includes(selectedMonth)) && monthEl.dataset.manual !== "1") {
-      selectedMonth = availableMonths[0];
-      if (monthEl.value !== selectedMonth) monthEl.value = selectedMonth;
-    }
+    const selectedMonth = monthEl.value.trim();
     const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
     const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
     selectedSummaryYear = selectedYear;
@@ -1100,7 +1124,7 @@
         count: items.length,
       };
     });
-    const list = summaryMode === "year" ? yearRecords : monthRecords;
+    const list = filtered(base);
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
     const yearMonthGroups = buildAggregate(yearRecords, (item) => getRecordMonth(item));
@@ -1115,46 +1139,48 @@
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
     const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
-    const monthSwitchHtml = summaryMode === "month" && availableMonths.length
-      ? `<div class="summaryMonthSwitch">${availableMonths.map((month) => `<button class="btn btn--ghost btn--sm ${month === selectedMonth ? "is-active" : ""}" type="button" data-month="${escapeAttr(month)}">${escapeHtml(formatMonthJapanese(month))}</button>`).join("")}</div>`
-      : "";
+    const summaryYearHtml = allYearGroups.length
+      ? allYearGroups.map((item) => {
+          const months = item.months || [];
+          const isYearOpen = openSummaryYear === item.key;
+          const yearArrow = isYearOpen ? "⌃" : "〉";
+          return `
+            <div class="summaryYearBlock ${isYearOpen ? "is-open" : ""}">
+              <div class="summaryLine summaryLine--bar summaryLine--year" data-summary-year="${escapeAttr(item.key)}" role="button" tabindex="0" aria-expanded="${isYearOpen ? "true" : "false"}">
+                <span class="summaryLabel">${escapeHtml(item.key)}年</span>
+                <span class="summaryLine__count"><strong>${escapeHtml(formatWeight(item.total))}kg</strong>　収穫${escapeHtml(item.count)}回</span>
+                <span class="summaryBar"><span class="summaryBar__fill" style="width:${yearCardMax ? Math.max(12, (item.total / yearCardMax) * 100) : 0}%"></span></span>
+                <span class="summaryLine__arrow">${yearArrow}</span>
+              </div>
+              ${isYearOpen && months.length ? `
+                <div class="summaryMonthList">
+                  ${months.map((monthItem) => {
+                    const monthOpen = openSummaryYear === item.key && openSummaryMonth === monthItem.key;
+                    const monthArrow = monthOpen ? "⌃" : "〉";
+                    const monthRecordsForOpen = monthOpen ? filterRecordsByMonth(filterRecordsByYear(base, item.key), monthItem.key) : [];
+                    return `
+                      <div class="summaryMonthBlock ${monthOpen ? "is-open" : ""}">
+                        <div class="summaryLine summaryLine--bar summaryLine--month" data-summary-year="${escapeAttr(item.key)}" data-summary-month="${escapeAttr(monthItem.key)}" role="button" tabindex="0" aria-expanded="${monthOpen ? "true" : "false"}">
+                          <span class="summaryLabel">${escapeHtml(formatMonthLabel(monthItem.key))}</span>
+                          <span class="summaryLine__count"><strong>${escapeHtml(formatWeight(monthItem.total))}kg</strong>　収穫${escapeHtml(monthItem.count)}回</span>
+                          <span class="summaryBar"><span class="summaryBar__fill" style="width:${yearBarMax ? Math.max(12, (monthItem.total / yearBarMax) * 100) : 0}%"></span></span>
+                          <span class="summaryLine__arrow">${monthArrow}</span>
+                        </div>
+                        ${monthOpen ? `<div class="summaryMonthLogs">${renderSummaryMonthLogs(monthRecordsForOpen)}</div>` : ""}
+                      </div>`;
+                  }).join("")}
+                </div>
+              ` : ""}
+            </div>`;
+        }).join("")
+      : `<div class="summaryEmpty">集計データはありません</div>`;
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
         <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">${summaryMode === "year" ? "年間合計" : "月別集計"}</div>
-          <div class="summaryModeSwitch">
-            <button class="btn btn--ghost btn--sm ${summaryMode === "month" ? "is-active" : ""}" type="button" id="btnSummaryMonth">月表示</button>
-            <button class="btn btn--ghost btn--sm ${summaryMode === "year" ? "is-active" : ""}" type="button" id="btnSummaryYear">年表示</button>
-          </div>
-          ${summaryMode === "year" && availableYears.length ? `<div class="summaryYearSwitch">${availableYears.map((year) => `<button class="btn btn--ghost btn--sm ${year === selectedYear ? "is-active" : ""}" type="button" data-year="${escapeAttr(year)}">${escapeHtml(`${year}年`)}</button>`).join("")}</div>` : ""}
-          ${monthSwitchHtml}
+          <div class="summaryCard__label">年間集計</div>
           <div class="summaryCard__list">
-            ${summaryMode === "month" ? (
-              currentMonthGroup
-                ? `<div class="summaryLine summaryLine--bar"><span class="summaryLabel">${escapeHtml(formatMonthJapanese(currentMonthGroup.key))}</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(currentMonthGroup.total))}kg</strong>　収穫${escapeHtml(currentMonthGroup.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${monthBarMax ? Math.max(12, (currentMonthGroup.total / monthBarMax) * 100) : 0}%"></span></span></div>`
-                : `<div class="summaryEmpty">集計データはありません</div>`
-            ) : (
-              allYearGroups.length
-                ? allYearGroups.map((item) => `<div class="summaryLine summaryLine--bar summaryLine--year"><span class="summaryLabel">${escapeHtml(item.key)}年</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(item.total))}kg</strong>　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${yearCardMax ? Math.max(12, (item.total / yearCardMax) * 100) : 0}%"></span></span>${item.key === selectedYear ? `<span class="summaryLine__arrow">〉</span>` : ""}</div>`).join("")
-                : `<div class="summaryEmpty">集計データはありません</div>`
-            )}
-            ${summaryMode === "month" && visiblePastMonths.length ? visiblePastMonths.map((item) => `<div class="summaryLine summaryLine--past summaryLine--bar"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${monthBarMax ? Math.max(12, (item.total / monthBarMax) * 100) : 0}%"></span></span></div>`).join("") : ""}
-            ${summaryMode === "month" && monthGroups.length > 1 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllMonths">${showAllPastMonths ? "過去の月別集計を閉じる" : "過去の月別集計を表示"}</button>` : ""}
-            ${summaryMode === "year" ? `<div class="summarySubLabel">月別内訳</div>` : ""}
-            ${summaryMode === "year" ? yearMonthGroups.length ? yearMonthGroups.map((item) => `<div class="summaryLine summaryLine--past summaryLine--bar"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${yearBarMax ? Math.max(12, (item.total / yearBarMax) * 100) : 0}%"></span></span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>` : ""}
-          </div>
-        </div>
-        <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">工区別</div>
-          <div class="summaryCard__list">
-            ${fieldGroups.length ? fieldGroups.map((item) => `<div class="summaryLine summaryLine--bar summaryLine--field"><span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}">${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${fieldBarMax ? Math.max(12, (item.total / fieldBarMax) * 100) : 0}%"></span></span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
-          </div>
-        </div>
-        <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">規格別</div>
-          <div class="summaryCard__list">
-            ${gradeGroups.length ? gradeGroups.map((item) => `<div class="summaryLine"><span class="item__pill item__pill--grade ${getGradeBadgeClass(item.key)}"><span class="badgeDot"></span>${escapeHtml(item.key)}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>`}
+            ${summaryYearHtml}
           </div>
         </div>
       </div>
@@ -1498,8 +1524,6 @@
       .slice()
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0] || null;
     if (latestImported?.date) {
-      monthEl.value = String(latestImported.date).slice(0, 7);
-      monthEl.dataset.manual = "";
       selectedSummaryYear = String(latestImported.date).slice(0, 4);
     }
 
@@ -1873,11 +1897,11 @@
     entries = demoMode ? demoRecordList() : loadLocal();
     sheetEntries = null;
 
-    monthEl.value = monthStr();
+    monthEl.value = "";
     monthEl.dataset.manual = "";
     if (demoMode) {
       const demoDate = entries[0]?.date || todayStr();
-      monthEl.value = String(demoDate).slice(0, 7);
+      monthEl.value = "";
       monthEl.dataset.manual = "";
       dateEl.value = demoDate;
     }
@@ -1913,32 +1937,24 @@
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
-      const monthBtn = target?.closest("#btnShowAllMonths");
-      const modeMonthBtn = target?.closest("#btnSummaryMonth");
-      const modeYearBtn = target?.closest("#btnSummaryYear");
-      const monthChoiceBtn = target?.closest("[data-month]");
-      const yearBtn = target?.closest("[data-year]");
-      if (monthBtn) setShowAllPastMonths(!showAllPastMonths);
-      if (monthChoiceBtn && monthChoiceBtn instanceof HTMLElement) {
-        const nextMonth = String(monthChoiceBtn.getAttribute("data-month") || "").slice(0, 7);
-        if (nextMonth) {
-          monthEl.dataset.manual = "1";
-          monthEl.value = nextMonth;
+      const yearBtn = target?.closest("[data-summary-year]");
+      const monthBtn = target?.closest("[data-summary-month]");
+      if (yearBtn && yearBtn instanceof HTMLElement) {
+        const nextYear = String(yearBtn.getAttribute("data-summary-year") || "").slice(0, 4);
+        if (nextYear) {
+          openSummaryYear = openSummaryYear === nextYear ? "" : nextYear;
+          if (openSummaryYear !== nextYear) openSummaryMonth = "";
+          selectedSummaryYear = nextYear;
           render();
         }
       }
-      if (modeMonthBtn) setSummaryMode("month");
-      if (modeYearBtn) {
-        setSummaryMode("year");
-        if (!selectedSummaryYear) {
-          selectedSummaryYear = monthStr().slice(0, 4);
-        }
-      }
-      if (yearBtn && yearBtn instanceof HTMLElement) {
-        const nextYear = String(yearBtn.getAttribute("data-year") || "").slice(0, 4);
-        if (nextYear) {
+      if (monthBtn && monthBtn instanceof HTMLElement) {
+        const nextYear = String(monthBtn.getAttribute("data-summary-year") || "").slice(0, 4);
+        const nextMonth = String(monthBtn.getAttribute("data-summary-month") || "").slice(0, 7);
+        if (nextYear && nextMonth) {
+          if (openSummaryYear !== nextYear) openSummaryYear = nextYear;
+          openSummaryMonth = openSummaryMonth === nextMonth && openSummaryYear === nextYear ? "" : nextMonth;
           selectedSummaryYear = nextYear;
-          setSummaryMode("year");
           render();
         }
       }
