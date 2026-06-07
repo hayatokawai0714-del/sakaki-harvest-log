@@ -185,6 +185,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryCard__list{display:flex;flex-direction:column;gap:8px}
 .summaryModeSwitch{display:flex;gap:8px;flex-wrap:wrap}
 .summaryModeSwitch .btn.is-active{background:rgba(21,128,61,.12);border-color:rgba(21,128,61,.30);color:#14532d}
+.summaryYearSwitch{display:flex;gap:6px;flex-wrap:wrap}
 .summarySubLabel{font-size:12px;font-weight:900;color:var(--muted);padding-top:2px}
 .summaryLine{
   display:flex;
@@ -220,6 +221,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryLine--bar{
   align-items:center;
 }
+.summaryLine--bar span:first-child{white-space:nowrap}
 .summaryLine--bar .summaryBar{
   flex:1 1 64px;
   height:8px;
@@ -242,6 +244,10 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   font-weight:700;
   color:var(--text);
   white-space:nowrap;
+}
+.summaryLine--log{
+  gap:6px;
+  align-items:center;
 }
 .summaryCard--list > .summaryLine .item__pill--field{
   display:inline-flex;

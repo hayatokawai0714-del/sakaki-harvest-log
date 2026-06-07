@@ -98,6 +98,7 @@
   let showAllPastMonths = false;
   let showDayBreakdown = false;
   let summaryMode = "month";
+  let selectedSummaryYear = "";
   const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
 
   function demoRecords() {
@@ -675,9 +676,10 @@
     return true;
   }
 
-  async function deleteRecordById(id) {
+  async function deleteRecordById(id, opts = {}) {
+    const silent = Boolean(opts.silent);
     if (demoMode) {
-      toast("warn", "表示確認モードでは削除できません");
+      if (!silent) toast("warn", "表示確認モードでは削除できません");
       return;
     }
     try {
@@ -688,10 +690,10 @@
       removeLocalRecord(id);
       entries = entries.filter((entry) => entry.id !== id);
       render();
-      toast("ok", "削除しました");
+      if (!silent) toast("ok", "削除しました");
     } catch (err) {
       console.error("[Cloudflare] DELETE error =", err);
-      toast("err", `削除失敗: ${String(err)}`);
+      if (!silent) toast("err", `削除失敗: ${String(err)}`);
     }
   }
 
@@ -908,6 +910,10 @@
     return /工区$/.test(raw) ? raw : `${raw}工区`;
   }
 
+  function isAgrinoteRecord(record) {
+    return String(record?.user || "") === "アグリノート" || String(record?.id || "").startsWith("agrinote-");
+  }
+
   function formatFieldBadge(field) {
     return formatFieldName(field);
   }
@@ -1031,7 +1037,9 @@
   function render() {
     const base = getDisplayRecords();
     const selectedMonth = monthEl.value || monthStr();
-    const selectedYear = selectedMonth.slice(0, 4);
+    const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
+    const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
+    selectedSummaryYear = selectedYear;
     const monthRecords = filterRecordsByMonth(base, selectedMonth);
     const yearRecords = filterRecordsByYear(base, selectedYear);
     const list = summaryMode === "year" ? yearRecords : monthRecords;
@@ -1075,6 +1083,7 @@
             <button class="btn btn--ghost btn--sm ${summaryMode === "month" ? "is-active" : ""}" type="button" id="btnSummaryMonth">月表示</button>
             <button class="btn btn--ghost btn--sm ${summaryMode === "year" ? "is-active" : ""}" type="button" id="btnSummaryYear">年表示</button>
           </div>
+          ${summaryMode === "year" && availableYears.length ? `<div class="summaryYearSwitch">${availableYears.map((year) => `<button class="btn btn--ghost btn--sm ${year === selectedYear ? "is-active" : ""}" type="button" data-year="${escapeAttr(year)}">${escapeHtml(`${year}年`)}</button>`).join("")}</div>` : ""}
           <div class="summaryCard__list">
             ${summaryMode === "month" ? (
               currentMonthGroup
@@ -1441,6 +1450,30 @@
     toast("ok", "localStorageを削除しました");
   }
 
+  async function clearTestData() {
+    if (demoMode) {
+      toast("warn", "表示確認モードでは削除できません");
+      return;
+    }
+    const base = getDisplayRecords();
+    const targets = base.filter((record) => !isAgrinoteRecord(record));
+    const keeperCount = base.length - targets.length;
+    if (!targets.length) {
+      toast("warn", "削除対象のテストデータはありません");
+      return;
+    }
+    const ok = confirm(`アグリノート以外のテストデータを削除します。アグリノート取込データは残します。この操作は元に戻せません。実行しますか？\n\n削除対象：${targets.length}件\n保持対象：アグリノートデータ ${keeperCount}件`);
+    if (!ok) return;
+    for (const record of targets) {
+      await deleteRecordById(record.id, { silent: true });
+    }
+    entries = entries.filter((record) => isAgrinoteRecord(record));
+    sheetEntries = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : sheetEntries;
+    saveLocal();
+    render();
+    toast("ok", `テストデータを削除しました（${targets.length}件）`);
+  }
+
   function buildPostPayload(entry) {
     return {
       date: entry.date,
@@ -1796,6 +1829,7 @@
     btnExportJson.addEventListener("click", exportJson);
     btnOcrRead.addEventListener("click", readOcrImage);
     btnOcrApply.addEventListener("click", applyOcrToWeights);
+    $("#btnClearTests").addEventListener("click", () => void clearTestData());
     btnOcrClear.addEventListener("click", () => {
       ocrCandidateValues = [];
       ocrCandidateDetails = [];
@@ -1810,10 +1844,24 @@
       const dayBtn = target?.closest("#btnToggleDayBreakdown");
       const modeMonthBtn = target?.closest("#btnSummaryMonth");
       const modeYearBtn = target?.closest("#btnSummaryYear");
+      const yearBtn = target?.closest("[data-year]");
       if (monthBtn) setShowAllPastMonths(!showAllPastMonths);
       if (dayBtn) setShowDayBreakdown(!showDayBreakdown);
       if (modeMonthBtn) setSummaryMode("month");
-      if (modeYearBtn) setSummaryMode("year");
+      if (modeYearBtn) {
+        setSummaryMode("year");
+        if (!selectedSummaryYear) {
+          selectedSummaryYear = monthStr().slice(0, 4);
+        }
+      }
+      if (yearBtn && yearBtn instanceof HTMLElement) {
+        const nextYear = String(yearBtn.getAttribute("data-year") || "").slice(0, 4);
+        if (nextYear) {
+          selectedSummaryYear = nextYear;
+          setSummaryMode("year");
+          render();
+        }
+      }
     });
 
     ocrImageEl.addEventListener("change", async () => {
