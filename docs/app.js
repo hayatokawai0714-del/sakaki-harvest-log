@@ -1478,6 +1478,9 @@
     const importedTest = imported.filter((record) => !isAgrinoteRecord(record));
     const existingLocalAgrinote = entries.filter((record) => isAgrinoteRecord(record));
     const existingLocalTest = entries.filter((record) => !isAgrinoteRecord(record));
+    if (getEndpoint() && !Array.isArray(sheetEntries)) {
+      await fetchCloudRecords({ silent: true });
+    }
     const existingCloudAgrinote = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : [];
     const existingCloudTest = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => !isAgrinoteRecord(record)) : [];
     const existingAgrinoteMap = new Map([...existingLocalAgrinote, ...existingCloudAgrinote].map((record) => [record.id, record]));
@@ -1501,7 +1504,8 @@
     entries = [...new Map(nextLocal.map((record) => [record.id, record])).values()];
 
     let syncFailed = false;
-    if (Array.isArray(sheetEntries)) {
+    const canSyncCloud = Boolean(getEndpoint());
+    if (canSyncCloud) {
       try {
         const retainedCloud = existingCloudTest.slice();
         for (const record of existingCloudAgrinote) {
@@ -1529,7 +1533,7 @@
 
     saveLocal();
     render();
-    toast(syncFailed ? "warn" : "ok", `${replaceCount}件を読み込みました${syncFailed ? "（クラウド同期は端末側のみ反映）" : ""}`);
+    toast(syncFailed ? "warn" : "ok", `${replaceCount}件を読み込みました${syncFailed ? "（端末内のみ保存）" : "（D1へ保存しました）"}`);
   }
 
   function clearAllLocal() {
