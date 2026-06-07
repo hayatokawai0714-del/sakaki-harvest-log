@@ -264,6 +264,14 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryLine--year,
 .summaryLine--month{
   cursor:pointer;
+  width:100%;
+  text-align:left;
+  appearance:none;
+  border:1px solid rgba(15,23,42,.08);
+}
+.summaryLine--year:hover,
+.summaryLine--month:hover{
+  border-color:rgba(37,99,235,.20);
 }
 .summaryLine__arrow{
   margin-left:2px;

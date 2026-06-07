@@ -1146,12 +1146,12 @@
           const yearArrow = isYearOpen ? "⌃" : "〉";
           return `
             <div class="summaryYearBlock ${isYearOpen ? "is-open" : ""}">
-              <div class="summaryLine summaryLine--bar summaryLine--year" data-summary-year="${escapeAttr(item.key)}" role="button" tabindex="0" aria-expanded="${isYearOpen ? "true" : "false"}">
+              <button class="summaryLine summaryLine--bar summaryLine--year" type="button" data-summary-year="${escapeAttr(item.key)}" aria-expanded="${isYearOpen ? "true" : "false"}">
                 <span class="summaryLabel">${escapeHtml(item.key)}年</span>
                 <span class="summaryLine__count"><strong>${escapeHtml(formatWeight(item.total))}kg</strong>　収穫${escapeHtml(item.count)}回</span>
                 <span class="summaryBar"><span class="summaryBar__fill" style="width:${yearCardMax ? Math.max(12, (item.total / yearCardMax) * 100) : 0}%"></span></span>
                 <span class="summaryLine__arrow">${yearArrow}</span>
-              </div>
+              </button>
               ${isYearOpen && months.length ? `
                 <div class="summaryMonthList">
                   ${months.map((monthItem) => {
@@ -1160,12 +1160,12 @@
                     const monthRecordsForOpen = monthOpen ? filterRecordsByMonth(filterRecordsByYear(base, item.key), monthItem.key) : [];
                     return `
                       <div class="summaryMonthBlock ${monthOpen ? "is-open" : ""}">
-                        <div class="summaryLine summaryLine--bar summaryLine--month" data-summary-year="${escapeAttr(item.key)}" data-summary-month="${escapeAttr(monthItem.key)}" role="button" tabindex="0" aria-expanded="${monthOpen ? "true" : "false"}">
+                        <button class="summaryLine summaryLine--bar summaryLine--month" type="button" data-summary-year="${escapeAttr(item.key)}" data-summary-month="${escapeAttr(monthItem.key)}" aria-expanded="${monthOpen ? "true" : "false"}">
                           <span class="summaryLabel">${escapeHtml(formatMonthLabel(monthItem.key))}</span>
                           <span class="summaryLine__count"><strong>${escapeHtml(formatWeight(monthItem.total))}kg</strong>　収穫${escapeHtml(monthItem.count)}回</span>
                           <span class="summaryBar"><span class="summaryBar__fill" style="width:${yearBarMax ? Math.max(12, (monthItem.total / yearBarMax) * 100) : 0}%"></span></span>
                           <span class="summaryLine__arrow">${monthArrow}</span>
-                        </div>
+                        </button>
                         ${monthOpen ? `<div class="summaryMonthLogs">${renderSummaryMonthLogs(monthRecordsForOpen)}</div>` : ""}
                       </div>`;
                   }).join("")}
