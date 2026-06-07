@@ -902,6 +902,13 @@
     return `${Number(match[1])}年${Number(match[2])}月`;
   }
 
+  function formatMonthShort(monthKey) {
+    const value = String(monthKey || "");
+    const match = value.match(/^(\d{4})-(\d{2})$/);
+    if (!match) return value;
+    return `${Number(match[2])}月`;
+  }
+
   function formatFieldName(field) {
     const raw = String(field || "").trim();
     if (!raw) return "(未設定)";
@@ -912,6 +919,44 @@
 
   function isAgrinoteRecord(record) {
     return String(record?.user || "") === "アグリノート" || String(record?.id || "").startsWith("agrinote-");
+  }
+
+  function dedupeRecordKey(record) {
+    return [
+      String(record?.date || ""),
+      String(record?.field || ""),
+      String(record?.grade || ""),
+      String(record?.total_weight || ""),
+      String(record?.memo || "").trim(),
+      String(record?.weights || "").trim(),
+    ].join("|");
+  }
+
+  function getAvailableMonths(records) {
+    return [...new Set(records.map((record) => getRecordMonth(record)).filter(Boolean))].sort((a, b) => String(b).localeCompare(String(a), "ja"));
+  }
+
+  function summarizeRecordsForStatus(records) {
+    const valid = Array.isArray(records) ? records.filter((record) => record && typeof record === "object") : [];
+    const agrinote = valid.filter((record) => isAgrinoteRecord(record));
+    const duplicateCount = (() => {
+      const seen = new Set();
+      let count = 0;
+      for (const record of agrinote) {
+        const key = dedupeRecordKey(record);
+        if (seen.has(key)) count += 1;
+        else seen.add(key);
+      }
+      return count;
+    })();
+    const dates = valid.map((record) => String(record?.date || "")).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)).sort();
+    const period = dates.length ? `${formatDateJapanese(dates[0])}〜${formatDateJapanese(dates[dates.length - 1])}` : "—";
+    return {
+      total: valid.length,
+      agrinote: agrinote.length,
+      duplicateCount,
+      period,
+    };
   }
 
   function formatFieldBadge(field) {
@@ -1036,7 +1081,12 @@
 
   function render() {
     const base = getDisplayRecords();
-    const selectedMonth = monthEl.value || monthStr();
+    const availableMonths = getAvailableMonths(base);
+    let selectedMonth = monthEl.value || monthStr();
+    if (availableMonths.length && (!selectedMonth || !availableMonths.includes(selectedMonth)) && monthEl.dataset.manual !== "1") {
+      selectedMonth = availableMonths[0];
+      if (monthEl.value !== selectedMonth) monthEl.value = selectedMonth;
+    }
     const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
     const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
     selectedSummaryYear = selectedYear;
@@ -1055,25 +1105,10 @@
     const fieldBarMax = Math.max(0, ...fieldGroups.map((item) => Number(item.total) || 0));
     const visibleYearMonths = yearMonthGroups;
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
-    const monthDays = monthRecords
-      .slice()
-      .sort((a, b) => {
-        if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-        return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""), "ja");
-      });
-    const dayGroups = [];
-    const dayMap = new Map();
-    for (const item of monthDays) {
-      const dateKey = String(item.date || "");
-      if (!dayMap.has(dateKey)) {
-        const group = { dateKey, total: 0, rows: [] };
-        dayMap.set(dateKey, group);
-        dayGroups.push(group);
-      }
-      const group = dayMap.get(dateKey);
-      group.total += Number(item.total_weight) || 0;
-      group.rows.push(item);
-    }
+    const statusSummary = summarizeRecordsForStatus(base);
+    const monthSwitchHtml = summaryMode === "month" && availableMonths.length
+      ? `<div class="summaryMonthSwitch">${availableMonths.map((month) => `<button class="btn btn--ghost btn--sm ${month === selectedMonth ? "is-active" : ""}" type="button" data-month="${escapeAttr(month)}">${escapeHtml(formatMonthJapanese(month))}</button>`).join("")}</div>`
+      : "";
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
@@ -1084,6 +1119,7 @@
             <button class="btn btn--ghost btn--sm ${summaryMode === "year" ? "is-active" : ""}" type="button" id="btnSummaryYear">年表示</button>
           </div>
           ${summaryMode === "year" && availableYears.length ? `<div class="summaryYearSwitch">${availableYears.map((year) => `<button class="btn btn--ghost btn--sm ${year === selectedYear ? "is-active" : ""}" type="button" data-year="${escapeAttr(year)}">${escapeHtml(`${year}年`)}</button>`).join("")}</div>` : ""}
+          ${monthSwitchHtml}
           <div class="summaryCard__list">
             ${summaryMode === "month" ? (
               currentMonthGroup
@@ -1098,29 +1134,6 @@
             ${summaryMode === "month" && monthGroups.length > 1 ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnShowAllMonths">${showAllPastMonths ? "過去の月別集計を閉じる" : "過去の月別集計を表示"}</button>` : ""}
             ${summaryMode === "year" ? `<div class="summarySubLabel">月別内訳</div>` : ""}
             ${summaryMode === "year" ? yearMonthGroups.length ? yearMonthGroups.map((item) => `<div class="summaryLine summaryLine--past summaryLine--bar"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${yearBarMax ? Math.max(12, (item.total / yearBarMax) * 100) : 0}%"></span></span></div>`).join("") : `<div class="summaryEmpty">集計データはありません</div>` : ""}
-          </div>
-        </div>
-        <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">日別内訳</div>
-          <div class="summaryCard__list">
-            ${summaryMode === "month" ? `<button class="btn btn--ghost btn--sm summaryToggle" type="button" id="btnToggleDayBreakdown">${showDayBreakdown ? "日の内訳を閉じる" : "日の内訳を表示"}</button>` : ""}
-            ${summaryMode === "month" && showDayBreakdown ? (
-              dayGroups.length ? dayGroups.map((group) => {
-                const lines = group.rows.map((item) => {
-                  const row = formatSummaryLineDayRow(item);
-                  return `<div class="summaryDayRows__row">
-                    <div class="summaryDayRows__main">
-                      <span class="summaryDayRows__date">${escapeHtml(formatDateMonthDay(item.date))}</span>
-                      <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}">${escapeHtml(row.fieldName)}</span>
-                      <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}"><span class="badgeDot"></span>${escapeHtml(row.gradeName)}</span>
-                      <span class="summaryLine__count summaryLine__count--weight">${escapeHtml(row.weight)}kg</span>
-                    </div>
-                    ${row.memoText ? `<div class="summaryDayRows__memo">メモ：${escapeHtml(row.memoText)}</div>` : ""}
-                  </div>`;
-                }).join("");
-                return `<div class="summaryDayRows">${lines}</div>`;
-              }).join("") : `<div class="summaryEmpty">集計データはありません</div>`
-            ) : summaryMode === "month" ? `<div class="summaryEmpty">日の内訳は閉じています</div>` : `<div class="summaryEmpty">日別内訳は月表示で確認できます</div>`}
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
@@ -1182,10 +1195,8 @@
     listEl.appendChild(frag);
 
     const src = sheetEntries ? CLOUD_SOURCE_LABEL : "この端末に保存中";
-    const ep = getEndpoint();
-    const endpointLabel = ep ? `endpoint: ${ep}` : "endpoint: 未設定";
     logSourceEl.textContent = `${src}`;
-    statusEl.textContent = `${src} / ${endpointLabel}`;
+    statusEl.textContent = `データ期間：${statusSummary.period} / 総件数：${statusSummary.total}件 / アグリノート：${statusSummary.agrinote}件${statusSummary.duplicateCount ? ` / 重複候補：${statusSummary.duplicateCount}件` : ""}`;
     btnShowAll.textContent = showAllLogs ? "直近5件だけ表示" : "すべてのログを表示";
     if (demoBannerEl) {
       demoBannerEl.hidden = !demoMode;
@@ -1428,23 +1439,64 @@
       return;
     }
 
-    const ok = confirm(`取り込み: ${imported.length}件\n現在のlocalStorage(${entries.length}件)に追加しますか？`);
-    if (!ok) return;
+    const importedAgrinote = imported.filter((record) => isAgrinoteRecord(record));
+    const importedTest = imported.filter((record) => !isAgrinoteRecord(record));
+    const existingLocalAgrinote = entries.filter((record) => isAgrinoteRecord(record));
+    const existingLocalTest = entries.filter((record) => !isAgrinoteRecord(record));
+    const existingCloudAgrinote = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : [];
+    const existingCloudTest = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => !isAgrinoteRecord(record)) : [];
+    const existingAgrinoteMap = new Map([...existingLocalAgrinote, ...existingCloudAgrinote].map((record) => [record.id, record]));
+    const duplicateCandidates = importedAgrinote.filter((record) => {
+      if (existingAgrinoteMap.has(record.id)) return true;
+      const key = dedupeRecordKey(record);
+      return [...existingAgrinoteMap.values()].some((current) => dedupeRecordKey(current) === key);
+    });
+    const nextAgrinote = importedAgrinote.filter((record) => {
+      if (existingAgrinoteMap.has(record.id)) return false;
+      const key = dedupeRecordKey(record);
+      return ![...existingAgrinoteMap.values()].some((current) => dedupeRecordKey(current) === key);
+    });
+    const replaceCount = nextAgrinote.length;
+    const keepCount = existingLocalTest.length + importedTest.length;
 
-    const byId = new Map(entries.map((e) => [e.id, e]));
-    for (const e of imported) byId.set(e.id, e);
-    entries = [...byId.values()];
+    const confirmMessage = `アグリノートデータを取り込みます。既存のアグリノートデータを入れ替えてから取り込みますか？重複を防ぐため、通常は入れ替えを選んでください。\n\n既存アグリノート件数：${existingAgrinoteMap.size}件\n新規取込件数：${importedAgrinote.length}件\n重複候補：${duplicateCandidates.length}件\n入れ替え後の件数：${keepCount + replaceCount}件`;
+    if (!confirm(confirmMessage)) return;
+
+    const nextLocal = [...existingLocalTest, ...nextAgrinote];
+    entries = [...new Map(nextLocal.map((record) => [record.id, record])).values()];
+
+    let syncFailed = false;
+    if (Array.isArray(sheetEntries)) {
+      try {
+        const retainedCloud = existingCloudTest.slice();
+        for (const record of existingCloudAgrinote) {
+          await deleteCloudRecord(record.id);
+        }
+        const syncedAgrinote = [];
+        for (const record of nextAgrinote) {
+          const saved = await createCloudRecord(record);
+          syncedAgrinote.push(saved);
+        }
+        sheetEntries = [...retainedCloud, ...syncedAgrinote];
+      } catch (err) {
+        syncFailed = true;
+        console.error("[JSON import] cloud sync failed =", err);
+        sheetEntries = null;
+      }
+    }
+
     const latestImported = imported
       .slice()
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))[0] || null;
     if (latestImported?.date) {
       monthEl.value = String(latestImported.date).slice(0, 7);
+      monthEl.dataset.manual = "";
       selectedSummaryYear = String(latestImported.date).slice(0, 4);
     }
 
     saveLocal();
     render();
-    toast("ok", `JSON取り込み完了しました（${imported.length}件）`);
+    toast(syncFailed ? "warn" : "ok", `${replaceCount}件を読み込みました${syncFailed ? "（クラウド同期は端末側のみ反映）" : ""}`);
   }
 
   function clearAllLocal() {
@@ -1813,9 +1865,11 @@
     sheetEntries = null;
 
     monthEl.value = monthStr();
+    monthEl.dataset.manual = "";
     if (demoMode) {
       const demoDate = entries[0]?.date || todayStr();
       monthEl.value = String(demoDate).slice(0, 7);
+      monthEl.dataset.manual = "";
       dateEl.value = demoDate;
     }
 
@@ -1827,7 +1881,10 @@
     });
     btnRenameOther.addEventListener("click", renameOtherUser);
 
-    monthEl.addEventListener("change", render);
+    monthEl.addEventListener("change", () => {
+      monthEl.dataset.manual = "1";
+      render();
+    });
     qEl.addEventListener("input", render);
 
     btnClear.addEventListener("click", clearAllLocal);
@@ -1848,12 +1905,19 @@
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
       const monthBtn = target?.closest("#btnShowAllMonths");
-      const dayBtn = target?.closest("#btnToggleDayBreakdown");
       const modeMonthBtn = target?.closest("#btnSummaryMonth");
       const modeYearBtn = target?.closest("#btnSummaryYear");
+      const monthChoiceBtn = target?.closest("[data-month]");
       const yearBtn = target?.closest("[data-year]");
       if (monthBtn) setShowAllPastMonths(!showAllPastMonths);
-      if (dayBtn) setShowDayBreakdown(!showDayBreakdown);
+      if (monthChoiceBtn && monthChoiceBtn instanceof HTMLElement) {
+        const nextMonth = String(monthChoiceBtn.getAttribute("data-month") || "").slice(0, 7);
+        if (nextMonth) {
+          monthEl.dataset.manual = "1";
+          monthEl.value = nextMonth;
+          render();
+        }
+      }
       if (modeMonthBtn) setSummaryMode("month");
       if (modeYearBtn) {
         setSummaryMode("year");

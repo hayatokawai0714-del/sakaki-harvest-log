@@ -28,6 +28,16 @@ body{
 .toolbarPanel--menu{grid-template-columns:1fr;max-width:420px}
 .toolbarPanel .field{margin:0}
 .devOnly{display:none}
+.statusInfo{
+  margin:0 16px 10px;
+  padding:8px 10px;
+  border-radius:12px;
+  border:1px solid rgba(15,23,42,.10);
+  background:rgba(15,23,42,.03);
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.5;
+}
 .manageLaunchers{display:flex;gap:8px;flex-wrap:wrap;padding:0 16px 10px}
 .manageLaunchers .btn{padding:8px 12px;font-size:13px;min-width:112px}
 .dangerZone{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
@@ -186,6 +196,8 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryModeSwitch{display:flex;gap:8px;flex-wrap:wrap}
 .summaryModeSwitch .btn.is-active{background:rgba(21,128,61,.12);border-color:rgba(21,128,61,.30);color:#14532d}
 .summaryYearSwitch{display:flex;gap:6px;flex-wrap:wrap}
+.summaryMonthSwitch{display:flex;gap:6px;flex-wrap:wrap}
+.summaryMonthSwitch .btn.is-active{background:rgba(37,99,235,.12);border-color:rgba(37,99,235,.30);color:#1d4ed8}
 .summarySubLabel{font-size:12px;font-weight:900;color:var(--muted);padding-top:2px}
 .summaryLine{
   display:flex;
