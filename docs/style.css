@@ -248,6 +248,9 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   border-radius:inherit;
   background:linear-gradient(90deg, rgba(37,99,235,.58), rgba(37,99,235,.92));
 }
+.summaryLine--year .summaryBar__fill{
+  background:linear-gradient(90deg, rgba(21,128,61,.42), rgba(21,128,61,.82));
+}
 .summaryLine--field .summaryBar__fill{
   background:linear-gradient(90deg, rgba(185,28,28,.50), rgba(185,28,28,.88));
 }
@@ -260,6 +263,11 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryLine--log{
   gap:6px;
   align-items:center;
+}
+.summaryLine__arrow{
+  margin-left:2px;
+  color:var(--muted);
+  font-weight:900;
 }
 .summaryCard--list > .summaryLine .item__pill--field{
   display:inline-flex;

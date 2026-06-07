@@ -1092,6 +1092,14 @@
     selectedSummaryYear = selectedYear;
     const monthRecords = filterRecordsByMonth(base, selectedMonth);
     const yearRecords = filterRecordsByYear(base, selectedYear);
+    const allYearGroups = availableYears.map((year) => {
+      const items = filterRecordsByYear(base, year);
+      return {
+        key: year,
+        total: sumWeights(items.map((item) => Number(item.total_weight) || 0)),
+        count: items.length,
+      };
+    });
     const list = summaryMode === "year" ? yearRecords : monthRecords;
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
@@ -1105,6 +1113,7 @@
     const fieldBarMax = Math.max(0, ...fieldGroups.map((item) => Number(item.total) || 0));
     const visibleYearMonths = yearMonthGroups;
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
+    const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
     const monthSwitchHtml = summaryMode === "month" && availableMonths.length
       ? `<div class="summaryMonthSwitch">${availableMonths.map((month) => `<button class="btn btn--ghost btn--sm ${month === selectedMonth ? "is-active" : ""}" type="button" data-month="${escapeAttr(month)}">${escapeHtml(formatMonthJapanese(month))}</button>`).join("")}</div>`
@@ -1126,8 +1135,8 @@
                 ? `<div class="summaryLine summaryLine--bar"><span class="summaryLabel">${escapeHtml(formatMonthJapanese(currentMonthGroup.key))}</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(currentMonthGroup.total))}kg</strong>　収穫${escapeHtml(currentMonthGroup.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${monthBarMax ? Math.max(12, (currentMonthGroup.total / monthBarMax) * 100) : 0}%"></span></span></div>`
                 : `<div class="summaryEmpty">集計データはありません</div>`
             ) : (
-              annualGroup
-                ? `<div class="summaryLine"><span class="summaryLabel">${escapeHtml(selectedYear)}年</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(annualGroup.total))}kg</strong>　収穫${escapeHtml(annualGroup.count)}回</span></div>`
+              allYearGroups.length
+                ? allYearGroups.map((item) => `<div class="summaryLine summaryLine--bar summaryLine--year"><span class="summaryLabel">${escapeHtml(item.key)}年</span><span class="summaryLine__count"><strong>${escapeHtml(formatWeight(item.total))}kg</strong>　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${yearCardMax ? Math.max(12, (item.total / yearCardMax) * 100) : 0}%"></span></span>${item.key === selectedYear ? `<span class="summaryLine__arrow">〉</span>` : ""}</div>`).join("")
                 : `<div class="summaryEmpty">集計データはありません</div>`
             )}
             ${summaryMode === "month" && visiblePastMonths.length ? visiblePastMonths.map((item) => `<div class="summaryLine summaryLine--past summaryLine--bar"><span>${escapeHtml(formatMonthJapanese(item.key))}</span><span class="summaryLine__count">${escapeHtml(formatWeight(item.total))}kg　収穫${escapeHtml(item.count)}回</span><span class="summaryBar"><span class="summaryBar__fill" style="width:${monthBarMax ? Math.max(12, (item.total / monthBarMax) * 100) : 0}%"></span></span></div>`).join("") : ""}
