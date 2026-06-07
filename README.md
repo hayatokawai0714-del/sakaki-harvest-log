@@ -86,3 +86,7 @@ npx wrangler pages secret put OPENAI_API_KEY --project-name sakaki-harvest-log
 
 CSV export uses BOM-prefixed UTF-8 for Excel.
 If Excel still garbles text, import via Data -> From Text/CSV and choose 65001 (UTF-8).
+
+## Agrinote CSV to JSON
+- Convert Agrinote CSV into the app import JSON format with:
+  `node scripts/convert_agrinote_to_json.js input.csv agrinote_import.json`
