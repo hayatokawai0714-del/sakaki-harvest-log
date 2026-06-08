@@ -1122,6 +1122,7 @@
         key: year,
         total: sumWeights(items.map((item) => Number(item.total_weight) || 0)),
         count: items.length,
+        months: buildAggregate(items, (item) => getRecordMonth(item)).slice().reverse(),
       };
     });
     const list = filtered(base);
@@ -1897,7 +1898,7 @@
     toast("ok", "設定を保存しました");
   }
 
-  function init() {
+  async function init() {
     entries = demoMode ? demoRecordList() : loadLocal();
     sheetEntries = null;
 
@@ -2054,10 +2055,16 @@
     if (demoMode) {
       dateEl.value = entries[0]?.date || todayStr();
     }
-    render();
     setSearchPanelOpen(false);
     setManagePanelOpen(false);
-    if (!demoMode) void fetchCloudRecords({ silent: true });
+    if (demoMode) {
+      render();
+      return;
+    }
+    const cloudResult = await fetchCloudRecords({ silent: true });
+    if (!cloudResult.ok) {
+      render();
+    }
   }
 
   init();
