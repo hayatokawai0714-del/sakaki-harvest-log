@@ -589,6 +589,16 @@
     };
   }
 
+  function buildImportCloudPayload(entry, options = {}) {
+    const payload = buildRecordPayload(entry);
+    if (options.omitId) delete payload.id;
+    if (options.omitTimestamps) {
+      delete payload.created_at;
+      delete payload.updated_at;
+    }
+    return payload;
+  }
+
   async function requestBackend(path, options = {}) {
     const { headers = {}, ...rest } = options;
     const response = await fetch(path, {
@@ -598,9 +608,9 @@
     const text = await response.text();
     const parsed = safeParseJSON(text);
     if (!parsed.ok) {
-      return { ok: false, status: response.status, error: "JSON parse failed", rawText: text };
+      return { ok: false, status: response.status, statusText: response.statusText, error: "JSON parse failed", rawText: text };
     }
-    return { ok: response.ok, status: response.status, data: parsed.value, rawText: text };
+    return { ok: response.ok, status: response.status, statusText: response.statusText, data: parsed.value, rawText: text };
   }
 
   async function fetchCloudRecords(opts = {}) {
@@ -654,6 +664,38 @@
       throw new Error(String(result.data?.error || result.error || "Cloud save failed"));
     }
     return result.data.record ? normalizeBackendRecord(result.data.record) : normalizeBackendRecord(entry);
+  }
+
+  async function createCloudRecordForImport(entry) {
+    const attempts = [
+      { label: "normal", payload: buildImportCloudPayload(entry) },
+      { label: "without-id", payload: buildImportCloudPayload(entry, { omitId: true, omitTimestamps: true }) },
+    ];
+
+    let lastError = null;
+    for (let index = 0; index < attempts.length; index += 1) {
+      const attempt = attempts[index];
+      const result = await requestBackend(getCloudRecordUrl(), {
+        method: "POST",
+        body: JSON.stringify(attempt.payload),
+      });
+      if (result.ok && result.data?.ok) {
+        return result.data.record ? normalizeBackendRecord(result.data.record) : normalizeBackendRecord(entry);
+      }
+      lastError = {
+        attempt: attempt.label,
+        index: index + 1,
+        status: result.status,
+        statusText: result.statusText || "",
+        error: String(result.data?.error || result.data?.message || result.error || "Cloud save failed"),
+        rawText: result.rawText || "",
+      };
+    }
+
+    const details = lastError
+      ? `(${lastError.attempt} / ${lastError.index}回目失敗 status:${lastError.status || "-"} ${lastError.statusText || ""} ${lastError.error})`
+      : "(unknown error)";
+    throw new Error(`Cloud save failed ${details}`);
   }
 
   async function updateCloudRecord(entry) {
@@ -1516,7 +1558,7 @@
         }
         const syncedAgrinote = [];
         for (const record of importedAgrinoteUnique) {
-          const saved = await createCloudRecord(record);
+          const saved = await createCloudRecordForImport(record);
           syncedAgrinote.push(saved);
         }
         syncedCount = syncedAgrinote.length;
