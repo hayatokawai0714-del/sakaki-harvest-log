@@ -1484,27 +1484,29 @@
     }
     const existingCloudAgrinote = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : [];
     const existingCloudTest = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => !isAgrinoteRecord(record)) : [];
+    const importedAgrinoteUnique = [...new Map(importedAgrinote.map((record) => [record.id, record])).values()];
     const existingAgrinoteMap = new Map([...existingLocalAgrinote, ...existingCloudAgrinote].map((record) => [record.id, record]));
     const duplicateCandidates = importedAgrinote.filter((record) => {
       if (existingAgrinoteMap.has(record.id)) return true;
       const key = dedupeRecordKey(record);
       return [...existingAgrinoteMap.values()].some((current) => dedupeRecordKey(current) === key);
     });
-    const nextAgrinote = importedAgrinote.filter((record) => {
+    const nextAgrinote = importedAgrinoteUnique.filter((record) => {
       if (existingAgrinoteMap.has(record.id)) return false;
       const key = dedupeRecordKey(record);
       return ![...existingAgrinoteMap.values()].some((current) => dedupeRecordKey(current) === key);
     });
-    const replaceCount = nextAgrinote.length;
+    const replaceCount = importedAgrinoteUnique.length;
     const keepCount = existingLocalTest.length + importedTest.length;
 
     const confirmMessage = `アグリノートデータを取り込みます。既存のアグリノートデータを入れ替えてから取り込みますか？重複を防ぐため、通常は入れ替えを選んでください。\n\n既存アグリノート件数：${existingAgrinoteMap.size}件\n新規取込件数：${importedAgrinote.length}件\n重複候補：${duplicateCandidates.length}件\n入れ替え後の件数：${keepCount + replaceCount}件`;
     if (!confirm(confirmMessage)) return;
 
-    const nextLocal = [...existingLocalTest, ...nextAgrinote];
+    const nextLocal = [...existingLocalTest, ...importedTest, ...importedAgrinoteUnique];
     entries = [...new Map(nextLocal.map((record) => [record.id, record])).values()];
 
     let syncFailed = false;
+    let syncedCount = 0;
     const canSyncCloud = Boolean(getEndpoint());
     if (canSyncCloud) {
       try {
@@ -1513,11 +1515,13 @@
           await deleteCloudRecord(record.id);
         }
         const syncedAgrinote = [];
-        for (const record of nextAgrinote) {
+        for (const record of importedAgrinoteUnique) {
           const saved = await createCloudRecord(record);
           syncedAgrinote.push(saved);
         }
+        syncedCount = syncedAgrinote.length;
         sheetEntries = [...retainedCloud, ...syncedAgrinote];
+        await fetchCloudRecords({ silent: true });
       } catch (err) {
         syncFailed = true;
         console.error("[JSON import] cloud sync failed =", err);
@@ -1534,7 +1538,11 @@
 
     saveLocal();
     render();
-    toast(syncFailed ? "warn" : "ok", `${replaceCount}件を読み込みました${syncFailed ? "（端末内のみ保存）" : "（D1へ保存しました）"}`);
+    const importedMessage = `${replaceCount}件を読み込みました`;
+    const cloudMessage = syncFailed
+      ? "（D1保存に失敗しました。端末内にのみ保存されています）"
+      : `（D1へ${syncedCount || replaceCount}件保存しました）`;
+    toast(syncFailed ? "warn" : "ok", `${importedMessage}${cloudMessage}`);
   }
 
   function clearAllLocal() {
