@@ -590,7 +590,21 @@
   }
 
   function buildImportCloudPayload(entry, options = {}) {
-    const payload = buildRecordPayload(entry);
+    const totalWeight = Number(entry?.total_weight);
+    const weights = Array.isArray(entry?.weights) && entry.weights.length
+      ? entry.weights.map((value) => Number(value)).filter((value) => Number.isFinite(value))
+      : Number.isFinite(totalWeight)
+        ? [totalWeight]
+        : [];
+    const payload = {
+      ...buildRecordPayload(entry),
+      field: String(entry?.field || "").trim() || "未設定",
+      grade: String(entry?.grade || "").trim() || "(未設定)",
+      user: String(entry?.user || "").trim() || "アグリノート",
+      memo: String(entry?.memo || ""),
+      weights,
+      total_weight: Number.isFinite(totalWeight) ? totalWeight : sumWeights(weights),
+    };
     if (options.omitId) delete payload.id;
     if (options.omitTimestamps) {
       delete payload.created_at;
@@ -1324,6 +1338,21 @@
     console.log("[Sheets] transport =", mode);
   }
 
+  function setImportStatus(message) {
+    if (statusEl) statusEl.textContent = message;
+  }
+
+  function summarizeImportPayload(entry) {
+    return {
+      date: String(entry?.date || ""),
+      field: String(entry?.field || "") || "未設定",
+      grade: String(entry?.grade || "") || "(未設定)",
+      total_weight: Number(entry?.total_weight || 0),
+      user: String(entry?.user || ""),
+      memo: Boolean(String(entry?.memo || "").trim()),
+    };
+  }
+
   function detectSafariIOS() {
     const ua = navigator.userAgent;
     return /iPad|iPhone|iPod/.test(ua) && !("MSStream" in window);
@@ -1526,7 +1555,7 @@
     }
     const existingCloudAgrinote = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : [];
     const existingCloudTest = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => !isAgrinoteRecord(record)) : [];
-    const importedAgrinoteUnique = [...new Map(importedAgrinote.map((record) => [record.id, record])).values()];
+    const importedAgrinoteUnique = [...new Map(importedAgrinote.map((record) => [record.id, record])).values()].filter((record) => Number(record.total_weight) > 0 && Number.isFinite(Number(record.total_weight)));
     const existingAgrinoteMap = new Map([...existingLocalAgrinote, ...existingCloudAgrinote].map((record) => [record.id, record]));
     const duplicateCandidates = importedAgrinote.filter((record) => {
       if (existingAgrinoteMap.has(record.id)) return true;
@@ -1545,30 +1574,54 @@
     if (!confirm(confirmMessage)) return;
 
     const nextLocal = [...existingLocalTest, ...importedTest, ...importedAgrinoteUnique];
-    entries = [...new Map(nextLocal.map((record) => [record.id, record])).values()];
 
     let syncFailed = false;
+    let syncErrorMessage = "";
     let syncedCount = 0;
     const canSyncCloud = Boolean(getEndpoint());
-    if (canSyncCloud) {
+    let syncedAgrinote = [];
+    if (canSyncCloud && importedAgrinoteUnique.length) {
       try {
-        const retainedCloud = existingCloudTest.slice();
-        for (const record of existingCloudAgrinote) {
-          await deleteCloudRecord(record.id);
+        const firstRecord = importedAgrinoteUnique[0];
+        setImportStatus(`D1保存テスト中：${firstRecord.date} / ${formatFieldName(firstRecord.field)} / ${formatWeight(firstRecord.total_weight)}kg`);
+        const testedRecord = await createCloudRecordForImport(firstRecord);
+        syncedAgrinote.push(testedRecord);
+        const continueOk = confirm(`1件目のD1保存に成功しました。\n\nこのまま残り${Math.max(0, importedAgrinoteUnique.length - 1)}件を保存しますか？`);
+        if (continueOk) {
+          for (const record of importedAgrinoteUnique.slice(1)) {
+            const saved = await createCloudRecordForImport(record);
+            syncedAgrinote.push(saved);
+          }
+          syncedCount = syncedAgrinote.length;
+          sheetEntries = [...existingCloudTest, ...syncedAgrinote];
+          await fetchCloudRecords({ silent: true });
+        } else {
+          syncFailed = true;
+          syncErrorMessage = "取り込みを中止しました";
+          setImportStatus(syncErrorMessage);
         }
-        const syncedAgrinote = [];
-        for (const record of importedAgrinoteUnique) {
-          const saved = await createCloudRecordForImport(record);
-          syncedAgrinote.push(saved);
-        }
-        syncedCount = syncedAgrinote.length;
-        sheetEntries = [...retainedCloud, ...syncedAgrinote];
-        await fetchCloudRecords({ silent: true });
       } catch (err) {
         syncFailed = true;
-        console.error("[JSON import] cloud sync failed =", err);
+        const detail = {
+          status: err?.status || err?.httpStatus || "-",
+          statusText: err?.statusText || "",
+          body: err?.rawText || "",
+          message: String(err?.message || err),
+        };
+        syncErrorMessage = `D1保存は途中で失敗しました（${syncedAgrinote.length + 1}件目） / status:${detail.status} ${detail.statusText} / ${detail.message}`;
+        setImportStatus(syncErrorMessage);
+        console.error("[JSON import] cloud sync failed =", detail.status, detail.statusText, detail.message);
         sheetEntries = null;
       }
+    } else if (canSyncCloud && !importedAgrinoteUnique.length) {
+      syncFailed = true;
+      syncErrorMessage = "D1保存対象のアグリノートデータがありません";
+      setImportStatus(syncErrorMessage);
+    }
+
+    entries = [...new Map(nextLocal.map((record) => [record.id, record])).values()];
+    if (!syncFailed && canSyncCloud && importedAgrinoteUnique.length) {
+      sheetEntries = [...existingCloudTest, ...syncedAgrinote];
     }
 
     const latestImported = imported
@@ -1582,7 +1635,7 @@
     render();
     const importedMessage = `${replaceCount}件を読み込みました`;
     const cloudMessage = syncFailed
-      ? "（D1保存に失敗しました。端末内にのみ保存されています）"
+      ? `（D1保存に失敗しました。端末内にのみ保存されています${syncErrorMessage ? ` / ${syncErrorMessage}` : ""}）`
       : `（D1へ${syncedCount || replaceCount}件保存しました）`;
     toast(syncFailed ? "warn" : "ok", `${importedMessage}${cloudMessage}`);
   }
