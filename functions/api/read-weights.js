@@ -57,23 +57,64 @@ function parseJsonFromText(text) {
   }
 }
 
+function safeMessage(value) {
+  return String(value || "").replace(/sk-[A-Za-z0-9_-]+/g, "[redacted]").slice(0, 500);
+}
+
+function adviceForStatus(status) {
+  if (status === 401 || status === 403) return "API key or project permissions may be invalid.";
+  if (status === 429) return "Rate limit or account balance may need checking.";
+  if (status >= 500) return "OpenAI API returned a server-side error.";
+  return "Check the OpenAI API request settings.";
+}
+
+function openAiErrorResponse(openaiResponse, responseText, parsedResponse) {
+  const apiError = parsedResponse?.error || {};
+  const status = openaiResponse.status;
+  return json({
+    ok: false,
+    error: "Image recognition API failed.",
+    code: "openai_api_error",
+    openai: {
+      status,
+      statusText: openaiResponse.statusText || "",
+      type: safeMessage(apiError.type),
+      code: safeMessage(apiError.code),
+      message: safeMessage(apiError.message || responseText || openaiResponse.statusText),
+      advice: adviceForStatus(status),
+    },
+  }, { status: 502 });
+}
+
 export async function onRequest({ request, env }) {
   if (request.method === "OPTIONS") return new Response(null, { headers: JSON_HEADERS });
-  if (request.method !== "POST") return json({ ok: false, error: "Send an image with POST." }, { status: 405 });
+  if (request.method !== "POST") {
+    return json({ ok: false, code: "method_not_allowed", error: "Send an image with POST.", status: 405 }, { status: 405 });
+  }
 
   const apiKey = env.OPENAI_API_KEY;
   if (!apiKey) {
-    return json({ ok: false, error: "Image reading is not configured. Set OPENAI_API_KEY." }, { status: 500 });
+    return json({
+      ok: false,
+      code: "missing_openai_api_key",
+      error: "Image reading is not configured. Set OPENAI_API_KEY.",
+      status: 500,
+    }, { status: 500 });
   }
 
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ ok: false, code: "request_json_parse_failed", error: "Request JSON could not be parsed.", status: 400 }, { status: 400 });
+    }
     const image = String(body?.image || "");
     if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(image)) {
-      return json({ ok: false, error: "Image data was not found." }, { status: 400 });
+      return json({ ok: false, code: "invalid_image_data", error: "Image data was not found.", status: 400 }, { status: 400 });
     }
     if (estimateBase64Bytes(image) > MAX_IMAGE_BYTES) {
-      return json({ ok: false, error: "Image is too large. Please send a smaller image." }, { status: 413 });
+      return json({ ok: false, code: "image_too_large", error: "Image is too large. Please send a smaller image.", status: 413 }, { status: 413 });
     }
 
     const prompt = [
@@ -98,7 +139,7 @@ export async function onRequest({ request, env }) {
           role: "user",
           content: [
             { type: "input_text", text: prompt },
-            { type: "input_image", image_url: image },
+            { type: "input_image", image_url: image, detail: "high" },
           ],
         }],
         temperature: 0,
@@ -109,7 +150,19 @@ export async function onRequest({ request, env }) {
     const responseText = await openaiResponse.text();
     const parsedResponse = parseJsonFromText(responseText);
     if (!openaiResponse.ok) {
-      return json({ ok: false, error: "Image recognition API failed." }, { status: 502 });
+      return openAiErrorResponse(openaiResponse, responseText, parsedResponse);
+    }
+    if (!parsedResponse) {
+      return json({
+        ok: false,
+        code: "openai_json_parse_failed",
+        error: "OpenAI response JSON could not be parsed.",
+        openai: {
+          status: openaiResponse.status,
+          statusText: openaiResponse.statusText || "",
+          message: safeMessage(responseText),
+        },
+      }, { status: 502 });
     }
 
     const text = outputText(parsedResponse);
@@ -123,7 +176,13 @@ export async function onRequest({ request, env }) {
       rawText: String(parsedOutput.rawText || parsedOutput.raw_text || text || "").slice(0, 2000),
       warnings,
     });
-  } catch {
-    return json({ ok: false, error: "Could not read the image. Please retake it or enter weights manually." }, { status: 500 });
+  } catch (error) {
+    return json({
+      ok: false,
+      code: "read_weights_unhandled_error",
+      error: "Could not read the image. Please retake it or enter weights manually.",
+      message: safeMessage(error?.message || error),
+      status: 500,
+    }, { status: 500 });
   }
 }

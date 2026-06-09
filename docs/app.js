@@ -440,14 +440,37 @@
     const parsed = safeParseJSON(text);
     const body = parsed.ok ? parsed.value : null;
     if (!response.ok || !body?.ok) {
-      const message = body?.error || `${response.status} ${response.statusText}`.trim() || "画像読み取りに失敗しました";
+      const message = formatOcrApiError(response, body);
       throw new Error(message);
     }
     return body;
   }
 
+  function formatOcrApiError(response, body) {
+    const openai = body?.openai || {};
+    const status = openai.status || body?.status || response.status;
+    const code = openai.code || body?.code || "";
+    const type = openai.type || "";
+    const message = openai.message || body?.message || body?.error || response.statusText || "画像読み取りに失敗しました";
+    const advice = openai.advice || (() => {
+      if (status === 401 || status === 403) return "APIキーまたは権限を確認してください";
+      if (status === 429) return "利用制限または残高を確認してください";
+      if (Number(status) >= 500) return "画像認識API側で失敗しました";
+      return "";
+    })();
+    const parts = [
+      `status: ${status}`,
+      code ? `code: ${code}` : "",
+      type ? `type: ${type}` : "",
+      advice,
+      `message: ${message}`,
+    ].filter(Boolean);
+    return parts.join(" / ");
+  }
+
   function friendlyOcrError(message) {
     const text = String(message || "");
+    if (/status:\s*\d+/i.test(text)) return `画像読み取り失敗（${text}）`;
     if (/OPENAI_API_KEY|not configured/i.test(text)) return "画像読み取りの設定が未完了です";
     if (/too large/i.test(text)) return "画像が大きすぎます";
     if (/not found|Image data/i.test(text)) return "画像データを確認できませんでした";
