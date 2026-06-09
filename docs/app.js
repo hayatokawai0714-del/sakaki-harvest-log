@@ -57,6 +57,8 @@
   const btnOcrReplace = $("#btnOcrReplace");
   const btnOcrApply = $("#btnOcrApply");
   const btnOcrClear = $("#btnOcrClear");
+  const ocrCandidateTextEl = /** @type {HTMLTextAreaElement} */ ($("#ocrCandidateText"));
+  const btnOcrCandidatesApply = $("#btnOcrCandidatesApply");
   const ocrCandidatesEl = $("#ocrCandidates");
   const calcManualWeightEl = /** @type {HTMLInputElement} */ ($("#calcManualWeight"));
   const btnCalcManualAdd = $("#btnCalcManualAdd");
@@ -106,6 +108,7 @@
   let ocrCandidateValues = [];
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
+  let pendingOcrMode = "append";
   let showAllLogs = false;
   let showAllPastMonths = false;
   let showDayBreakdown = false;
@@ -223,6 +226,7 @@
       ocrImageDataUrl = "";
       setOcrPreview("");
       setOcrStatus("未読み取り");
+      setOcrCandidateText([]);
       renderOcrCandidates([]);
       return;
     }
@@ -231,7 +235,8 @@
     reader.onload = () => {
       ocrImageDataUrl = String(reader.result || "");
       setOcrPreview(ocrImageDataUrl);
-      setOcrStatus("画像を読み込みました。写真から追加、または置き換えを押してください。");
+      setOcrCandidateText([]);
+      setOcrStatus("画像を読み込みました。写真から読み取り、または置き換えを押してください。");
       toast("ok", "画像を読み込みました");
     };
     reader.onerror = () => {
@@ -273,6 +278,27 @@
   function validateWeightRange(value) {
     const num = Number(value);
     return Number.isFinite(num) && num > 0 && num < 20;
+  }
+
+  function normalizeApiWeightCandidate(value) {
+    const raw = String(value || "").trim().replace(/,/g, ".");
+    if (!/^\d(?:\.\d{1,2})?$/.test(raw)) return "";
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num < 0.1 || num > 9.99) return "";
+    return num.toFixed(2).replace(/\.00$/, "");
+  }
+
+  function parseCandidateText(text) {
+    return String(text || "")
+      .split(/\r?\n/)
+      .map((line) => normalizeApiWeightCandidate(line))
+      .filter(Boolean);
+  }
+
+  function setOcrCandidateText(values) {
+    if (!ocrCandidateTextEl) return;
+    const items = Array.isArray(values) ? values : [];
+    ocrCandidateTextEl.value = items.join("\n");
   }
 
   function extractWeightCandidates(text) {
@@ -389,6 +415,46 @@
     return result;
   }
 
+  async function prepareImageForRemoteOcr(dataUrl) {
+    const image = await loadImageElement(dataUrl);
+    const maxWidth = 1600;
+    const scale = Math.min(1, maxWidth / image.naturalWidth);
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) return dataUrl;
+    context.drawImage(image, 0, 0, width, height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  }
+
+  async function readWeightsFromApi(imageDataUrl) {
+    const response = await fetch("/api/read-weights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imageDataUrl }),
+    });
+    const text = await response.text();
+    const parsed = safeParseJSON(text);
+    const body = parsed.ok ? parsed.value : null;
+    if (!response.ok || !body?.ok) {
+      const message = body?.error || `${response.status} ${response.statusText}`.trim() || "画像読み取りに失敗しました";
+      throw new Error(message);
+    }
+    return body;
+  }
+
+  function friendlyOcrError(message) {
+    const text = String(message || "");
+    if (/OPENAI_API_KEY|not configured/i.test(text)) return "画像読み取りの設定が未完了です";
+    if (/too large/i.test(text)) return "画像が大きすぎます";
+    if (/not found|Image data/i.test(text)) return "画像データを確認できませんでした";
+    if (/API failed/i.test(text)) return "画像認識APIの呼び出しに失敗しました";
+    return text || "画像を読み取れませんでした";
+  }
+
   function renderOcrCandidates(values) {
     const items = Array.isArray(values) ? values : [];
     ocrCandidateValues = items.map((item) => String(item || ""));
@@ -485,6 +551,24 @@
     calcManualWeightEl.focus();
   }
 
+  function applyCandidateTextToCalc() {
+    const values = parseCandidateText(ocrCandidateTextEl?.value || "");
+    if (!values.length) {
+      toast("warn", "追加できる候補がありません。0.1〜9.99kgで入力してください");
+      setOcrStatus("候補がありません。撮り直すか手入力してください");
+      return;
+    }
+    setCalcCandidates(values.map((value) => ({
+      rawText: value,
+      corrected: value,
+      confidence: 0,
+      valid: true,
+    })), pendingOcrMode);
+    setOcrStatus(`${values.length}件を重量一覧へ追加しました。確認後に入力へ反映してください。`);
+    toast("ok", `${values.length}件を重量一覧へ追加しました`);
+    pendingOcrMode = "append";
+  }
+
   function applyOcrToWeights() {
     const values = getCalcWeights();
     if (!values.length) {
@@ -502,64 +586,28 @@
       toast("warn", "先に写真を選択してください");
       return;
     }
-    if (!window.Tesseract?.recognize) {
-      toast("err", "OCRライブラリが読み込まれていません");
-      return;
-    }
-
-    setOcrStatus("読み取り中...");
-    toast("warn", "読み取り中...");
+    pendingOcrMode = mode === "replace" ? "replace" : "append";
+    setOcrStatus("画像を読み取り中です...");
+    toast("warn", "画像を読み取り中です...");
 
     try {
-      const image = await loadImageElement(ocrImageDataUrl);
-      const processed = drawProcessedCanvas(image, { maxWidth: 1200 });
-      if (!processed) throw new Error("画像の前処理に失敗しました");
-
-      const bands = detectTextRows(processed);
-      if (bands.length === 0) {
-        const fallback = await recognizeCanvas(processed);
-        const fallbackText = fallback?.data?.text || "";
-        const fallbackConfidence = getCandidateConfidence(fallback);
-        const fallbackCandidates = extractWeightCandidates(fallbackText).map((value) => ({
-          rawText: value,
-          corrected: value,
-          confidence: fallbackConfidence,
-          valid: validateWeightRange(value),
-        }));
-        setCalcCandidates(fallbackCandidates, mode);
-        setOcrStatus(fallbackCandidates.length ? `読み取り完了: ${fallbackCandidates.length}件` : "読み取り完了: 候補なし");
-        toast("ok", fallbackCandidates.length ? `読み取り完了: ${fallbackCandidates.length}件` : "読み取り完了: 候補なし");
+      const imageDataUrl = await prepareImageForRemoteOcr(ocrImageDataUrl);
+      const result = await readWeightsFromApi(imageDataUrl);
+      const values = (Array.isArray(result.weights) ? result.weights : [])
+        .map((value) => normalizeApiWeightCandidate(value))
+        .filter(Boolean);
+      setOcrCandidateText(values);
+      if (!values.length) {
+        setOcrStatus("読み取れませんでした。画像を撮り直すか手入力してください");
+        toast("warn", "読み取れませんでした。手入力してください");
         return;
       }
-
-      const results = [];
-      for (const band of bands) {
-        const cropped = cropCanvas(processed, band);
-        if (!cropped) continue;
-        const bandResult = await recognizeCanvas(cropped);
-        const bandText = bandResult?.data?.text || "";
-        const confidence = getCandidateConfidence(bandResult);
-        const extracted = extractWeightCandidates(bandText);
-        for (const rawText of extracted) {
-          const corrected = postCorrectOcrValue(rawText);
-          results.push({
-            rawText,
-            corrected: corrected || rawText,
-            confidence,
-            valid: validateWeightRange(corrected || rawText),
-          });
-        }
-      }
-
-      setCalcCandidates(results, mode);
-      const validCount = results.filter((item) => item.valid).length;
-      const warningCount = results.length - validCount;
-      setOcrStatus(`読み取り完了: ${results.length}件${warningCount ? ` / 範囲外 ${warningCount}件` : ""}`);
-      toast("ok", results.length ? `読み取り完了: ${results.length}件` : "読み取り完了: 候補なし");
+      setOcrStatus(`読み取り候補: ${values.length}件。確認して「候補を重量一覧に追加」を押してください。`);
+      toast("ok", `読み取り候補: ${values.length}件`);
     } catch (err) {
-      console.error("[OCR] error =", err);
-      setOcrStatus(`読み取り失敗: ${String(err)}`);
-      toast("err", `読み取り失敗: ${String(err)}`);
+      const message = friendlyOcrError(err?.message || err);
+      setOcrStatus(`${message}。撮り直すか手入力してください`);
+      toast("err", message);
     }
   }
 
@@ -2061,9 +2109,11 @@
     ocrImageDataUrl = "";
     ocrCandidateValues = [];
     ocrCandidateDetails = [];
+    pendingOcrMode = "append";
     if (ocrImageEl) ocrImageEl.value = "";
     if (ocrImageLibraryEl) ocrImageLibraryEl.value = "";
     if (calcManualWeightEl) calcManualWeightEl.value = "";
+    setOcrCandidateText([]);
     setOcrPreview("");
     setOcrStatus("未読み取り");
     renderOcrCandidates([]);
@@ -2144,6 +2194,7 @@
     btnExportJson.addEventListener("click", exportJson);
     btnOcrRead.addEventListener("click", () => readOcrImage("append"));
     btnOcrReplace.addEventListener("click", () => readOcrImage("replace"));
+    btnOcrCandidatesApply.addEventListener("click", applyCandidateTextToCalc);
     btnOcrApply.addEventListener("click", applyOcrToWeights);
     btnCalcManualAdd.addEventListener("click", addManualCalcWeight);
     calcManualWeightEl.addEventListener("keydown", (ev) => {
@@ -2159,6 +2210,8 @@
     btnOcrClear.addEventListener("click", () => {
       ocrCandidateValues = [];
       ocrCandidateDetails = [];
+      setOcrCandidateText([]);
+      pendingOcrMode = "append";
       renderOcrCandidates([]);
       setOcrStatus("計算をクリアしました");
     });

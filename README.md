@@ -87,6 +87,11 @@ npx wrangler pages secret put OPENAI_API_KEY --project-name sakaki-harvest-log
 CSV export uses BOM-prefixed UTF-8 for Excel.
 If Excel still garbles text, import via Data -> From Text/CSV and choose 65001 (UTF-8).
 
+## Weight image OCR
+- `/api/read-weights` uses `OPENAI_API_KEY` from Cloudflare Pages Secrets.
+- Do not write API keys in `docs/`, README, or client-side code.
+- Optional model override: set `OPENAI_VISION_MODEL` as a Pages environment variable.
+
 ## Agrinote CSV to JSON
 - Convert Agrinote CSV into the app import JSON format with:
   `node scripts/convert_agrinote_to_json.js input.csv agrinote_import.json`

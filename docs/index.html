@@ -77,7 +77,7 @@
             <img id="ocrPreview" alt="OCRプレビュー" />
           </div>
           <div class="weightTool__actions">
-            <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から追加</button>
+            <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から読み取り</button>
             <button class="btn btn--ghost" id="btnOcrReplace" type="button">読み取り結果で置き換え</button>
           </div>
           <div class="manualWeight">
@@ -89,6 +89,9 @@
               <label>計算中の重量一覧</label>
               <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">計算をクリア</button>
             </div>
+            <label class="hint" for="ocrCandidateText">読み取り候補（1行1重量・修正可）</label>
+            <textarea id="ocrCandidateText" class="candidateText" rows="4" placeholder="例:&#10;1.30&#10;2.02&#10;2.52"></textarea>
+            <button class="btn btn--secondary" id="btnOcrCandidatesApply" type="button">候補を重量一覧に追加</button>
             <div id="ocrCandidates" class="ocrCandidates"></div>
           </div>
           <div class="calcTotal">
@@ -276,7 +279,6 @@
     </form>
   </dialog>
 
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
