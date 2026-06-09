@@ -59,32 +59,42 @@
           </div>
         </div>
 
-        <details class="ocrToggle" id="ocrToggle">
-          <summary class="ocrToggle__summary">カメラで重量を読む</summary>
-          <div class="ocrPanel" aria-live="polite">
-            <div class="field">
-              <label for="ocrImage">写真を選択 / 撮影</label>
-              <input id="ocrImage" type="file" accept="image/*" capture="environment" />
-            </div>
-            <div class="ocrPanel__preview">
-              <img id="ocrPreview" alt="OCRプレビュー" />
-            </div>
-            <div class="ocrPanel__meta">
-              <div id="ocrStatus" class="hint">未読み取り</div>
-              <div class="actions">
-                <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から重量を読み取る</button>
-                <button class="btn btn--ghost" id="btnOcrApply" type="button">この重量を追加する</button>
-              </div>
-            </div>
-            <div class="ocrPanel__results">
-              <div class="labelRow">
-                <label>読み取った重量候補</label>
-                <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">候補クリア</button>
-              </div>
-              <div id="ocrCandidates" class="ocrCandidates"></div>
+        <section class="weightTool" aria-labelledby="weightToolTitle">
+          <div class="weightTool__head">
+            <div>
+              <h3 id="weightToolTitle">重量計算</h3>
+              <p>写真や手入力で重量を確認してから、必要な時だけ入力フォームへ反映できます</p>
             </div>
           </div>
-        </details>
+          <div class="weightTool__camera">
+            <label class="cameraButton" for="ocrImage">カメラで読み込む</label>
+            <input id="ocrImage" class="sr-only" type="file" accept="image/*" capture="environment" />
+            <div id="ocrStatus" class="hint">未読み取り</div>
+          </div>
+          <div class="ocrPanel__preview">
+            <img id="ocrPreview" alt="OCRプレビュー" />
+          </div>
+          <div class="weightTool__actions">
+            <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から追加</button>
+            <button class="btn btn--ghost" id="btnOcrReplace" type="button">読み取り結果で置き換え</button>
+          </div>
+          <div class="manualWeight">
+            <input id="calcManualWeight" type="number" inputmode="decimal" min="0" max="20" step="0.01" placeholder="例: 1.30" />
+            <button class="btn btn--secondary" id="btnCalcManualAdd" type="button">手入力で追加</button>
+          </div>
+          <div class="ocrPanel__results">
+            <div class="labelRow">
+              <label>計算中の重量一覧</label>
+              <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">計算をクリア</button>
+            </div>
+            <div id="ocrCandidates" class="ocrCandidates"></div>
+          </div>
+          <div class="calcTotal">
+            <div class="calcTotal__label">合計重量</div>
+            <div class="calcTotal__value"><span id="calcTotalWeight">0.00</span> kg</div>
+          </div>
+          <button class="btn btn--primary btn--wide" id="btnOcrApply" type="button">この重量を入力に反映</button>
+        </section>
 
         <div class="field">
           <label>重量一覧（kg）</label>
@@ -102,6 +112,18 @@
           <label for="memo">メモ</label>
           <textarea id="memo" name="memo" rows="2" placeholder="例: 葉が小さめ"></textarea>
         </div>
+
+        <section class="saveConfirm" id="saveConfirm" aria-live="polite">
+          <div class="saveConfirm__title">保存内容確認</div>
+          <div class="saveConfirm__grid">
+            <span>日付</span><strong id="confirmDate">未入力</strong>
+            <span>圃場</span><strong id="confirmField">未入力</strong>
+            <span>規格</span><strong id="confirmGrade">未入力</strong>
+            <span>入力者</span><strong id="confirmUser">未入力</strong>
+          </div>
+          <div class="saveConfirm__total">合計 <strong id="confirmTotalWeight">0.00</strong> kg</div>
+          <div class="hint">まだ保存されていません。内容を確認して保存してください</div>
+        </section>
 
         <div class="actions">
           <button class="btn btn--primary btn--save" type="submit">保存する</button>
