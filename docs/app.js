@@ -50,6 +50,7 @@
   const btnExportJson = $("#btnExportJson");
   const fileImport = /** @type {HTMLInputElement} */ ($("#fileImport"));
   const ocrImageEl = /** @type {HTMLInputElement} */ ($("#ocrImage"));
+  const ocrImageLibraryEl = /** @type {HTMLInputElement} */ ($("#ocrImageLibrary"));
   const ocrPreviewEl = /** @type {HTMLImageElement} */ ($("#ocrPreview"));
   const ocrStatusEl = $("#ocrStatus");
   const btnOcrRead = $("#btnOcrRead");
@@ -214,6 +215,32 @@
   function setOcrPreview(src) {
     ocrPreviewEl.src = src || "";
     ocrPreviewEl.style.display = src ? "block" : "none";
+  }
+
+  function handleOcrImageFile(file) {
+    ocrImageFile = file;
+    if (!file) {
+      ocrImageDataUrl = "";
+      setOcrPreview("");
+      setOcrStatus("未読み取り");
+      renderOcrCandidates([]);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      ocrImageDataUrl = String(reader.result || "");
+      setOcrPreview(ocrImageDataUrl);
+      setOcrStatus("画像を読み込みました。写真から追加、または置き換えを押してください。");
+      toast("ok", "画像を読み込みました");
+    };
+    reader.onerror = () => {
+      ocrImageDataUrl = "";
+      setOcrPreview("");
+      setOcrStatus("読み取れませんでした。手入力してください");
+      toast("err", "画像の読み込みに失敗しました");
+    };
+    reader.readAsDataURL(file);
   }
 
   function normalizeOcrCandidate(value) {
@@ -2035,6 +2062,7 @@
     ocrCandidateValues = [];
     ocrCandidateDetails = [];
     if (ocrImageEl) ocrImageEl.value = "";
+    if (ocrImageLibraryEl) ocrImageLibraryEl.value = "";
     if (calcManualWeightEl) calcManualWeightEl.value = "";
     setOcrPreview("");
     setOcrStatus("未読み取り");
@@ -2161,32 +2189,8 @@
       }
     });
 
-    ocrImageEl.addEventListener("change", async () => {
-      const file = ocrImageEl.files?.[0] || null;
-      ocrImageFile = file;
-      if (!file) {
-        ocrImageDataUrl = "";
-        setOcrPreview("");
-        setOcrStatus("未読み取り");
-        renderOcrCandidates([]);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = () => {
-        ocrImageDataUrl = String(reader.result || "");
-        setOcrPreview(ocrImageDataUrl);
-        setOcrStatus("画像を選択しました。読み取りを押してください。");
-        toast("ok", "画像を選択しました");
-      };
-      reader.onerror = () => {
-        ocrImageDataUrl = "";
-        setOcrPreview("");
-        setOcrStatus("画像の読み込みに失敗しました");
-        toast("err", "画像の読み込みに失敗しました");
-      };
-      reader.readAsDataURL(file);
-    });
+    ocrImageEl.addEventListener("change", () => handleOcrImageFile(ocrImageEl.files?.[0] || null));
+    ocrImageLibraryEl.addEventListener("change", () => handleOcrImageFile(ocrImageLibraryEl.files?.[0] || null));
 
     fileImport.addEventListener("change", async () => {
       const file = fileImport.files?.[0];

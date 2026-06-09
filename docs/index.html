@@ -67,8 +67,10 @@
             </div>
           </div>
           <div class="weightTool__camera">
-            <label class="cameraButton" for="ocrImage">カメラで読み込む</label>
+            <label class="cameraButton" for="ocrImage">カメラで撮影</label>
             <input id="ocrImage" class="sr-only" type="file" accept="image/*" capture="environment" />
+            <label class="cameraButton cameraButton--secondary" for="ocrImageLibrary">画像を選ぶ</label>
+            <input id="ocrImageLibrary" class="sr-only" type="file" accept="image/*" />
             <div id="ocrStatus" class="hint">未読み取り</div>
           </div>
           <div class="ocrPanel__preview">
