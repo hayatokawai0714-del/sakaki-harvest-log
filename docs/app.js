@@ -36,6 +36,7 @@
   const userEl = /** @type {HTMLSelectElement} */ ($("#user"));
   const memoEl = /** @type {HTMLTextAreaElement} */ ($("#memo"));
   const weightsWrap = $("#weights");
+  const formWeightListEl = $("#formWeightList");
   const totalWeightEl = $("#totalWeight");
   const btnAddWeight = $("#btnAddWeight");
   const btnRenameOther = $("#btnRenameOther");
@@ -420,6 +421,19 @@
     calcTotalWeightEl.textContent = total.toFixed(2);
   }
 
+  function syncCalcFromWeights(values) {
+    const items = (Array.isArray(values) ? values : [])
+      .map((value) => normalizeOcrCandidate(value))
+      .filter(Boolean)
+      .map((value) => ({
+        rawText: value,
+        corrected: value,
+        confidence: 0,
+        valid: true,
+      }));
+    setCalcCandidates(items, "replace");
+  }
+
   function setCalcCandidates(items, mode = "replace") {
     const nextItems = Array.isArray(items) ? items.filter((item) => item?.corrected && validateWeightRange(item.corrected)) : [];
     ocrCandidateDetails = mode === "append" ? [...ocrCandidateDetails, ...nextItems] : nextItems;
@@ -452,7 +466,7 @@
     }
     setWeightsTo(weightsWrap, values.length ? values : [""], updateTotal, updateTotal);
     updateTotal();
-    toast("ok", "入力フォームへ反映しました。内容を確認して保存してください");
+    toast("ok", "重量を反映しました。最後に「保存する」を押してください");
     requestAnimationFrame(() => saveConfirmEl?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }
 
@@ -885,7 +899,19 @@
   function updateTotal() {
     const ws = getWeightsFrom(weightsWrap);
     totalWeightEl.textContent = fmtWeightOne(sumWeights(ws));
+    renderFormWeightSummary(ws);
     updateSaveConfirm();
+  }
+
+  function renderFormWeightSummary(weights) {
+    const values = Array.isArray(weights) ? weights : [];
+    if (!values.length) {
+      formWeightListEl.textContent = "未反映";
+      formWeightListEl.classList.add("is-empty");
+      return;
+    }
+    formWeightListEl.textContent = values.map((value) => `${Number(value).toFixed(2)} kg`).join(" / ");
+    formWeightListEl.classList.remove("is-empty");
   }
 
   function updateSaveConfirm() {
@@ -1425,6 +1451,7 @@
     eMemo.value = e.memo;
 
     setWeightsTo(eWeightsWrap, e.weights, updateETotal, updateETotal);
+    syncCalcFromWeights(e.weights);
     updateETotal();
 
     dlgEdit.showModal();
@@ -2069,9 +2096,11 @@
 
     form.addEventListener("submit", handleSave);
     btnAddWeight.addEventListener("click", () => {
-      const { row, input } = makeWeightRow(updateTotal, updateTotal);
-      weightsWrap.appendChild(row);
-      requestAnimationFrame(() => input.focus());
+      syncCalcFromWeights(getWeightsFrom(weightsWrap));
+      requestAnimationFrame(() => {
+        calcManualWeightEl.focus();
+        calcManualWeightEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
     });
     btnRenameOther.addEventListener("click", renameOtherUser);
 

@@ -96,16 +96,18 @@
           <button class="btn btn--primary btn--wide" id="btnOcrApply" type="button">この重量を入力に反映</button>
         </section>
 
-        <div class="field">
-          <label>重量一覧（kg）</label>
-          <div id="weights" class="weights"></div>
+        <div class="field formWeightReview">
+          <label>重量確認</label>
+          <div id="formWeightList" class="formWeightReview__list">未反映</div>
           <div class="weightFooter">
             <div class="total">
               <div class="total__label">合計重量</div>
               <div class="total__value"><span id="totalWeight">0.0</span> kg</div>
             </div>
-            <button class="btn btn--ghost btn--addWeight" id="btnAddWeight" type="button">＋重量を追加</button>
+            <button class="btn btn--ghost btn--addWeight" id="btnAddWeight" type="button">重量計算で編集する</button>
           </div>
+          <div id="weights" class="weights weights--internal" aria-hidden="true"></div>
+          <div class="hint">重量計算で確認してから反映してください。まだ保存はされていません。</div>
         </div>
 
         <div class="field">
