@@ -63,42 +63,35 @@
           <div class="weightTool__head">
             <div>
               <h3 id="weightToolTitle">重量計算</h3>
-              <p>写真や手入力で重量を確認してから、必要な時だけ入力フォームへ反映できます</p>
+              <p>写真や手入力で重量を確認し、最後に保存します</p>
             </div>
           </div>
           <div class="weightTool__camera">
-            <label class="cameraButton" for="ocrImage">カメラで撮影</label>
+            <label class="cameraButton" for="ocrImage">写真を撮る</label>
             <input id="ocrImage" class="sr-only" type="file" accept="image/*" capture="environment" />
-            <label class="cameraButton cameraButton--secondary" for="ocrImageLibrary">画像を選ぶ</label>
+            <label class="cameraButton cameraButton--secondary" for="ocrImageLibrary">写真を選ぶ</label>
             <input id="ocrImageLibrary" class="sr-only" type="file" accept="image/*" />
             <div id="ocrStatus" class="hint">未読み取り</div>
           </div>
           <div class="ocrPanel__preview">
             <img id="ocrPreview" alt="OCRプレビュー" />
           </div>
-          <div class="weightTool__actions">
-            <button class="btn btn--ghost" id="btnOcrRead" type="button">写真から読み取り</button>
-            <button class="btn btn--ghost" id="btnOcrReplace" type="button">読み取り結果で置き換え</button>
-          </div>
-          <div class="manualWeight">
-            <input id="calcManualWeight" type="number" inputmode="decimal" min="0" max="20" step="0.01" placeholder="例: 1.30" />
-            <button class="btn btn--secondary" id="btnCalcManualAdd" type="button">手入力で追加</button>
-          </div>
-          <div class="ocrPanel__results">
-            <div class="labelRow">
-              <label>計算中の重量一覧</label>
-              <button class="btn btn--ghost btn--sm" id="btnOcrClear" type="button">計算をクリア</button>
-            </div>
-            <label class="hint" for="ocrCandidateText">読み取り候補（1行1重量・修正可）</label>
-            <textarea id="ocrCandidateText" class="candidateText" rows="4" placeholder="例:&#10;1.30&#10;2.02&#10;2.52"></textarea>
-            <button class="btn btn--secondary" id="btnOcrCandidatesApply" type="button">候補を重量一覧に追加</button>
-            <div id="ocrCandidates" class="ocrCandidates"></div>
-          </div>
           <div class="calcTotal">
             <div class="calcTotal__label">合計重量</div>
             <div class="calcTotal__value"><span id="calcTotalWeight">0.00</span> kg</div>
+            <div class="hint">保存前に数字を確認してください</div>
           </div>
-          <button class="btn btn--primary btn--wide" id="btnOcrApply" type="button">この重量を入力に反映</button>
+          <div class="manualWeight">
+            <label for="calcManualWeight">重量を追加</label>
+            <input id="calcManualWeight" type="number" inputmode="decimal" min="0" max="20" step="0.01" placeholder="例: 1.30" />
+            <button class="btn btn--secondary" id="btnCalcManualAdd" type="button">＋追加</button>
+          </div>
+          <div class="ocrPanel__results">
+            <div class="labelRow">
+              <label>読み取り結果</label>
+            </div>
+            <div id="ocrCandidates" class="ocrCandidates"></div>
+          </div>
         </section>
 
         <div class="field formWeightReview">
@@ -112,7 +105,7 @@
             <button class="btn btn--ghost btn--addWeight" id="btnAddWeight" type="button">重量計算で編集する</button>
           </div>
           <div id="weights" class="weights weights--internal" aria-hidden="true"></div>
-          <div class="hint">重量計算で確認してから反映してください。まだ保存はされていません。</div>
+          <div class="hint">重量計算の内容と自動で同期します。まだ保存はされていません。</div>
         </div>
 
         <div class="field">

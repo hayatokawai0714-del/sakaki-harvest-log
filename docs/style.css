@@ -146,16 +146,18 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 }
 .weightTool__actions{display:flex;gap:8px;flex-wrap:wrap}
 .manualWeight{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.manualWeight label{grid-column:1/-1;font-size:12px;color:var(--muted);font-weight:800}
 .calcTotal{
-  display:flex;
+  display:grid;
+  grid-template-columns:1fr auto;
   align-items:center;
-  justify-content:space-between;
   gap:12px;
   padding:12px 14px;
   border-radius:14px;
   border:1px solid rgba(21,128,61,.20);
   background:rgba(21,128,61,.08);
 }
+.calcTotal .hint{grid-column:1/-1}
 .calcTotal__label{font-size:13px;color:#14532d;font-weight:900}
 .calcTotal__value{font-size:18px;font-weight:900;color:#0f172a}
 .calcTotal__value span{font-size:32px;letter-spacing:0;font-weight:900}
@@ -232,13 +234,6 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   display:block;
 }
 .ocrPanel__meta,.ocrPanel__results{display:flex;flex-direction:column;gap:10px}
-.candidateText{
-  min-height:104px;
-  font-size:18px;
-  font-weight:800;
-  line-height:1.6;
-  font-variant-numeric:tabular-nums;
-}
 .ocrCandidates{display:flex;flex-direction:column;gap:10px}
 .ocrCandidate{
   display:grid;
@@ -246,8 +241,6 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   gap:8px;
   align-items:center;
 }
-.ocrCandidate__info{display:flex;flex-direction:column;gap:6px}
-.ocrCandidate__value input{width:100%}
 .ocrCandidate input{margin:0}
 .ocrCandidate__del{align-self:stretch}
 

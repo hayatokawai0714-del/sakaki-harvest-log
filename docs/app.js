@@ -53,12 +53,6 @@
   const ocrImageLibraryEl = /** @type {HTMLInputElement} */ ($("#ocrImageLibrary"));
   const ocrPreviewEl = /** @type {HTMLImageElement} */ ($("#ocrPreview"));
   const ocrStatusEl = $("#ocrStatus");
-  const btnOcrRead = $("#btnOcrRead");
-  const btnOcrReplace = $("#btnOcrReplace");
-  const btnOcrApply = $("#btnOcrApply");
-  const btnOcrClear = $("#btnOcrClear");
-  const ocrCandidateTextEl = /** @type {HTMLTextAreaElement} */ ($("#ocrCandidateText"));
-  const btnOcrCandidatesApply = $("#btnOcrCandidatesApply");
   const ocrCandidatesEl = $("#ocrCandidates");
   const calcManualWeightEl = /** @type {HTMLInputElement} */ ($("#calcManualWeight"));
   const btnCalcManualAdd = $("#btnCalcManualAdd");
@@ -108,7 +102,6 @@
   let ocrCandidateValues = [];
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
-  let pendingOcrMode = "append";
   let showAllLogs = false;
   let showAllPastMonths = false;
   let showDayBreakdown = false;
@@ -226,7 +219,6 @@
       ocrImageDataUrl = "";
       setOcrPreview("");
       setOcrStatus("未読み取り");
-      setOcrCandidateText([]);
       renderOcrCandidates([]);
       return;
     }
@@ -235,9 +227,9 @@
     reader.onload = () => {
       ocrImageDataUrl = String(reader.result || "");
       setOcrPreview(ocrImageDataUrl);
-      setOcrCandidateText([]);
-      setOcrStatus("画像を読み込みました。写真から読み取り、または置き換えを押してください。");
-      toast("ok", "画像を読み込みました");
+      setOcrStatus("写真を読み取り中です...");
+      toast("warn", "写真を読み取り中です...");
+      void readOcrImage("replace");
     };
     reader.onerror = () => {
       ocrImageDataUrl = "";
@@ -286,19 +278,6 @@
     const num = Number(raw);
     if (!Number.isFinite(num) || num < 0.1 || num > 9.99) return "";
     return num.toFixed(2).replace(/\.00$/, "");
-  }
-
-  function parseCandidateText(text) {
-    return String(text || "")
-      .split(/\r?\n/)
-      .map((line) => normalizeApiWeightCandidate(line))
-      .filter(Boolean);
-  }
-
-  function setOcrCandidateText(values) {
-    if (!ocrCandidateTextEl) return;
-    const items = Array.isArray(values) ? values : [];
-    ocrCandidateTextEl.value = items.join("\n");
   }
 
   function extractWeightCandidates(text) {
@@ -484,22 +463,16 @@
     ocrCandidatesEl.innerHTML = "";
 
     if (items.length === 0) {
-      ocrCandidatesEl.innerHTML = `<div class="hint">重量を読み取れませんでした。手入力してください。</div>`;
+      ocrCandidatesEl.innerHTML = `<div class="hint">写真を撮るか、重量を手入力してください。</div>`;
       updateCalcTotal();
       return;
     }
 
     for (const [index, value] of items.entries()) {
-      const details = ocrCandidateDetails[index] || { rawText: value, corrected: value, confidence: 0, valid: validateWeightRange(value) };
       const row = document.createElement("div");
       row.className = "ocrCandidate";
       row.innerHTML = `
-        <div class="ocrCandidate__info">
-          <div class="ocrCandidate__value">
-            <input type="number" inputmode="decimal" min="0" max="20" step="0.01" value="${escapeHtml(value)}" aria-label="重量${index + 1}" />
-          </div>
-          <div class="ocrBadge">OCR値: ${escapeHtml(details.rawText)} / 補正値: ${escapeHtml(details.corrected)} / 信頼度: ${escapeHtml(String(details.confidence))}%${details.valid ? "" : " / 範囲外"}</div>
-        </div>
+        <input type="number" inputmode="decimal" min="0" max="20" step="0.01" value="${escapeHtml(value)}" aria-label="重量${index + 1}" />
         <button class="btn btn--danger ocrCandidate__del" type="button">削除</button>
       `;
       const input = /** @type {HTMLInputElement} */ (row.querySelector("input"));
@@ -535,6 +508,13 @@
   function updateCalcTotal() {
     const total = sumWeights(getCalcWeights());
     calcTotalWeightEl.textContent = total.toFixed(2);
+    syncCalcToFormWeights();
+  }
+
+  function syncCalcToFormWeights() {
+    const values = getCalcWeights();
+    setWeightsTo(weightsWrap, values.length ? values : [""], updateTotal, updateTotal);
+    updateTotal();
   }
 
   function syncCalcFromWeights(values) {
@@ -574,44 +554,13 @@
     calcManualWeightEl.focus();
   }
 
-  function applyCandidateTextToCalc() {
-    const values = parseCandidateText(ocrCandidateTextEl?.value || "");
-    if (!values.length) {
-      toast("warn", "追加できる候補がありません。0.1〜9.99kgで入力してください");
-      setOcrStatus("候補がありません。撮り直すか手入力してください");
-      return;
-    }
-    setCalcCandidates(values.map((value) => ({
-      rawText: value,
-      corrected: value,
-      confidence: 0,
-      valid: true,
-    })), pendingOcrMode);
-    setOcrStatus(`${values.length}件を重量一覧へ追加しました。確認後に入力へ反映してください。`);
-    toast("ok", `${values.length}件を重量一覧へ追加しました`);
-    pendingOcrMode = "append";
-  }
-
-  function applyOcrToWeights() {
-    const values = getCalcWeights();
-    if (!values.length) {
-      toast("warn", "反映できる重量がありません");
-      return;
-    }
-    setWeightsTo(weightsWrap, values.length ? values : [""], updateTotal, updateTotal);
-    updateTotal();
-    toast("ok", "重量を反映しました。最後に「保存する」を押してください");
-    requestAnimationFrame(() => saveConfirmEl?.scrollIntoView({ behavior: "smooth", block: "center" }));
-  }
-
   async function readOcrImage(mode = "append") {
     if (!ocrImageFile || !ocrImageDataUrl) {
       toast("warn", "先に写真を選択してください");
       return;
     }
-    pendingOcrMode = mode === "replace" ? "replace" : "append";
-    setOcrStatus("画像を読み取り中です...");
-    toast("warn", "画像を読み取り中です...");
+    const applyMode = mode === "replace" ? "replace" : "append";
+    setOcrStatus("写真を読み取り中です...");
 
     try {
       const imageDataUrl = await prepareImageForRemoteOcr(ocrImageDataUrl);
@@ -619,14 +568,19 @@
       const values = (Array.isArray(result.weights) ? result.weights : [])
         .map((value) => normalizeApiWeightCandidate(value))
         .filter(Boolean);
-      setOcrCandidateText(values);
       if (!values.length) {
         setOcrStatus("読み取れませんでした。画像を撮り直すか手入力してください");
         toast("warn", "読み取れませんでした。手入力してください");
         return;
       }
-      setOcrStatus(`読み取り候補: ${values.length}件。確認して「候補を重量一覧に追加」を押してください。`);
-      toast("ok", `読み取り候補: ${values.length}件`);
+      setCalcCandidates(values.map((value) => ({
+        rawText: value,
+        corrected: value,
+        confidence: 0,
+        valid: true,
+      })), applyMode);
+      setOcrStatus(`${values.length}件を読み取りました。合計重量を確認してください。`);
+      toast("ok", `${values.length}件を読み取りました`);
     } catch (err) {
       const message = friendlyOcrError(err?.message || err);
       setOcrStatus(`${message}。撮り直すか手入力してください`);
@@ -2132,11 +2086,9 @@
     ocrImageDataUrl = "";
     ocrCandidateValues = [];
     ocrCandidateDetails = [];
-    pendingOcrMode = "append";
     if (ocrImageEl) ocrImageEl.value = "";
     if (ocrImageLibraryEl) ocrImageLibraryEl.value = "";
     if (calcManualWeightEl) calcManualWeightEl.value = "";
-    setOcrCandidateText([]);
     setOcrPreview("");
     setOcrStatus("未読み取り");
     renderOcrCandidates([]);
@@ -2215,10 +2167,6 @@
     btnFetch.addEventListener("click", () => fetchCloudRecords({ silent: false }));
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
-    btnOcrRead.addEventListener("click", () => readOcrImage("append"));
-    btnOcrReplace.addEventListener("click", () => readOcrImage("replace"));
-    btnOcrCandidatesApply.addEventListener("click", applyCandidateTextToCalc);
-    btnOcrApply.addEventListener("click", applyOcrToWeights);
     btnCalcManualAdd.addEventListener("click", addManualCalcWeight);
     calcManualWeightEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
@@ -2230,14 +2178,6 @@
     form.addEventListener("change", updateSaveConfirm);
     form.addEventListener("reset", () => requestAnimationFrame(updateSaveConfirm));
     $("#btnClearTests").addEventListener("click", () => void clearTestData());
-    btnOcrClear.addEventListener("click", () => {
-      ocrCandidateValues = [];
-      ocrCandidateDetails = [];
-      setOcrCandidateText([]);
-      pendingOcrMode = "append";
-      renderOcrCandidates([]);
-      setOcrStatus("計算をクリアしました");
-    });
 
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
     summaryEl.addEventListener("click", (ev) => {
