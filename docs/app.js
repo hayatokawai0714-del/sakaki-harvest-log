@@ -1487,8 +1487,10 @@
           <div class="summaryMonthCompare__bars">
             <span>${escapeHtml(selectedYear)}年</span>
             ${renderMetricBar(monthlyYearMax ? (item.total / monthlyYearMax) * 100 : 0, "summaryMetricBar--current")}
+            <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
             <span>${escapeHtml(String(Number(selectedYear) - 1))}年</span>
             ${renderMetricBar(monthlyYearMax ? (previous / monthlyYearMax) * 100 : 0, "summaryMetricBar--previous")}
+            <strong>${previous > 0 ? `${escapeHtml(fmtWeightOne(previous))}kg` : "前年なし"}</strong>
           </div>
           <div class="summaryMonthCompare__diff ${diff.className}">${escapeHtml(diff.text)}</div>
         </div>`;
