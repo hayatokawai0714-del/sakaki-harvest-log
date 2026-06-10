@@ -2196,7 +2196,7 @@
     }
 
     form.addEventListener("submit", handleSave);
-    btnAddWeight.addEventListener("click", () => {
+    btnAddWeight?.addEventListener("click", () => {
       syncCalcFromWeights(getWeightsFrom(weightsWrap));
       requestAnimationFrame(() => {
         calcManualWeightEl.focus();

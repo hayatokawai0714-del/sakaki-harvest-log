@@ -176,6 +176,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .weights--internal{
   display:none;
 }
+.formWeightReview[hidden]{display:none!important}
 .formWeightReview__list{
   padding:10px 12px;
   border-radius:12px;

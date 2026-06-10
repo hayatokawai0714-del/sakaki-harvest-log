@@ -96,18 +96,11 @@
           </div>
         </section>
 
-        <div class="field formWeightReview">
-          <label>重量確認</label>
+        <div class="field formWeightReview formWeightReview--internal" hidden aria-hidden="true">
           <div id="formWeightList" class="formWeightReview__list">重量: 0.00kg</div>
-          <div class="weightFooter">
-            <div class="total">
-              <div class="total__label">合計重量</div>
-              <div class="total__value"><span id="totalWeight">0.0</span> kg</div>
-            </div>
-            <button class="btn btn--ghost btn--addWeight" id="btnAddWeight" type="button">重量計算で編集する</button>
-          </div>
+          <span id="totalWeight">0.0</span>
+          <button class="btn btn--ghost btn--addWeight" id="btnAddWeight" type="button">重量計算で編集する</button>
           <div id="weights" class="weights weights--internal" aria-hidden="true"></div>
-          <div class="hint">重量計算の内容と自動で同期します。まだ保存はされていません。</div>
         </div>
 
         <div class="field">
