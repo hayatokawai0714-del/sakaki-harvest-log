@@ -1168,6 +1168,18 @@
     return `<span class="summaryMetricBar ${className}"><span style="width:${Math.max(0, Math.min(100, width))}%"></span></span>`;
   }
 
+  function formatDiffValue(current, previous) {
+    if (!Number.isFinite(previous) || previous <= 0) return { text: "前年なし", className: "is-empty" };
+    const diff = Math.round((current - previous) * 10) / 10;
+    const percent = Math.round(((current - previous) / previous) * 1000) / 10;
+    const sign = diff >= 0 ? "+" : "";
+    const percentSign = percent >= 0 ? "+" : "";
+    return {
+      text: `${sign}${fmtWeightOne(diff)}kg / ${percentSign}${percent.toFixed(1)}%`,
+      className: diff >= 0 ? "is-plus" : "is-minus",
+    };
+  }
+
   function renderFieldMonthlyTrend(records, year, fieldKey) {
     const rows = buildFieldMonthlyComparison(records, year, fieldKey);
     if (!rows.length) return `<div class="summaryEmpty">月別推移データはありません</div>`;
@@ -1435,8 +1447,8 @@
     const annualSummary = getRecordSummary(yearRecords);
     const previousAnnualSummary = getRecordSummary(previousYearRecords);
     const monthlyYearTotals = buildMonthlyYearTotals(base, selectedYear);
-    const visibleMonthlyYearTotals = monthlyYearTotals.filter((item) => item.total > 0 || item.count > 0);
-    const monthlyYearMax = Math.max(0, ...monthlyYearTotals.map((item) => Number(item.total) || 0));
+    const previousMonthlyYearTotals = buildMonthlyYearTotals(base, String(Number(selectedYear) - 1));
+    const monthlyYearMax = Math.max(0, ...monthlyYearTotals.map((item) => Number(item.total) || 0), ...previousMonthlyYearTotals.map((item) => Number(item.total) || 0));
     const allYearGroups = availableYears.map((year) => {
       const items = filterRecordsByYear(base, year);
       return {
@@ -1463,13 +1475,26 @@
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
     const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
-    const monthlyTrendHtml = visibleMonthlyYearTotals.length
-      ? visibleMonthlyYearTotals.map((item) => `
-        <div class="summaryMetricRow">
-          <span>${escapeHtml(formatMonthShort(item.key))}</span>
-          <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
-          ${renderMetricBar(monthlyYearMax ? (item.total / monthlyYearMax) * 100 : 0)}
-        </div>`).join("")
+    const monthlyTrendHtml = monthlyYearTotals.length
+      ? monthlyYearTotals.map((item, index) => {
+        const previous = previousMonthlyYearTotals[index]?.total || 0;
+        const diff = formatDiffValue(item.total, previous);
+        return `<div class="summaryMonthCompare">
+          <div class="summaryMonthCompare__head">
+            <span>${escapeHtml(formatMonthShort(item.key))}</span>
+            <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
+          </div>
+          <div class="summaryMonthCompare__bars">
+            <span>${escapeHtml(selectedYear)}年</span>
+            ${renderMetricBar(monthlyYearMax ? (item.total / monthlyYearMax) * 100 : 0, "summaryMetricBar--current")}
+            <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
+            <span>${escapeHtml(String(Number(selectedYear) - 1))}年</span>
+            ${renderMetricBar(monthlyYearMax ? (previous / monthlyYearMax) * 100 : 0, "summaryMetricBar--previous")}
+            <strong>${previous > 0 ? `${escapeHtml(fmtWeightOne(previous))}kg` : "前年なし"}</strong>
+          </div>
+          <div class="summaryMonthCompare__diff ${diff.className}">${escapeHtml(diff.text)}</div>
+        </div>`;
+      }).join("")
       : `<div class="summaryEmpty">この年の月別データはありません</div>`;
     const fieldComparisonHtml = fieldGroups.length
       ? fieldGroups.map((item) => {

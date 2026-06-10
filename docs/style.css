@@ -320,6 +320,24 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryMetricField__numbers small{display:flex;flex-direction:column;gap:1px;font-size:11px;font-weight:800;color:var(--muted);line-height:1.25;text-align:right}
 .summaryMetricBar{display:block;height:8px;border-radius:999px;background:rgba(15,23,42,.07);overflow:hidden}
 .summaryMetricBar span{display:block;height:100%;border-radius:inherit;background:#166534}
+.summaryMetricBar--current span{background:#166534}
+.summaryMetricBar--previous span{background:#94a3b8}
+.summaryMonthCompare{
+  display:grid;
+  gap:5px;
+  padding:8px 0;
+  border-bottom:1px solid rgba(15,23,42,.07);
+}
+.summaryMonthCompare:last-child{border-bottom:none}
+.summaryMonthCompare__head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.summaryMonthCompare__head span{font-size:13px;font-weight:900;color:#334155}
+.summaryMonthCompare__head strong{font-size:16px;font-weight:950;color:#0f172a}
+.summaryMonthCompare__bars{display:grid;grid-template-columns:44px 1fr 68px;gap:4px 7px;align-items:center;font-size:11px;color:var(--muted);font-weight:800}
+.summaryMonthCompare__bars strong{font-size:12px;font-weight:900;color:#334155;text-align:right;white-space:nowrap}
+.summaryMonthCompare__diff{font-size:12px;font-weight:900}
+.summaryMonthCompare__diff.is-plus{color:#047857}
+.summaryMonthCompare__diff.is-minus{color:#b91c1c}
+.summaryMonthCompare__diff.is-empty{color:var(--muted)}
 .summaryMetricBar.item__badge--field-1 span{background:#b91c1c}
 .summaryMetricBar.item__badge--field-2 span{background:#1d4ed8}
 .summaryMetricBar.item__badge--field-3上 span,.summaryMetricBar.item__badge--field-3工区上 span{background:#16a34a}
