@@ -307,6 +307,17 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryMetricRow{display:grid;grid-template-columns:72px minmax(72px,auto) 1fr;align-items:center;gap:8px;font-size:13px}
 .summaryMetricRow strong{font-size:15px;font-weight:900;color:#0f172a;text-align:right;white-space:nowrap}
 .summaryMetricRow--field{grid-template-columns:max-content minmax(72px,auto) 1fr}
+.summaryMetricField{
+  width:100%;
+  border:0;
+  background:transparent;
+  padding:0;
+  cursor:pointer;
+  text-align:left;
+  grid-template-columns:max-content minmax(90px,auto) 1fr auto;
+}
+.summaryMetricField__numbers{display:grid;gap:2px;justify-items:end}
+.summaryMetricField__numbers small{display:flex;flex-direction:column;gap:1px;font-size:11px;font-weight:800;color:var(--muted);line-height:1.25;text-align:right}
 .summaryMetricBar{display:block;height:8px;border-radius:999px;background:rgba(15,23,42,.07);overflow:hidden}
 .summaryMetricBar span{display:block;height:100%;border-radius:inherit;background:#166534}
 .summaryMetricBar.item__badge--field-1 span{background:#b91c1c}
@@ -317,6 +328,13 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryMetricBar.item__badge--field-5 span{background:#a16207}
 .summaryMetricBar.item__badge--field-6 span{background:#475569}
 .summaryMetricBar.item__badge--field-7 span{background:#ec4899}
+.summaryFieldBlock{display:grid;gap:6px}
+.summaryFieldTrend{display:grid;gap:6px;padding:8px 0 2px 8px;border-left:1px solid rgba(15,23,42,.08);margin-left:8px}
+.summaryFieldTrend__title{font-size:12px;font-weight:900;color:#334155}
+.summaryFieldTrend__row{display:grid;grid-template-columns:38px 68px 1fr;gap:6px;align-items:center;font-size:12px}
+.summaryFieldTrend__row strong{font-size:13px;font-weight:900;color:#0f172a;text-align:right;white-space:nowrap}
+.summaryFieldTrend__row small{font-size:11px;font-weight:700;color:var(--muted);white-space:nowrap}
+.summaryFieldTrend__row .summaryMetricBar{grid-column:1 / -1;height:6px}
 .summaryModeSwitch{display:none}
 .summaryYearSwitch{display:flex;gap:6px;flex-wrap:wrap}
 .summaryMonthSwitch{display:flex;gap:6px;flex-wrap:wrap}

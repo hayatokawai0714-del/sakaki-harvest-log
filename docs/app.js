@@ -112,6 +112,7 @@
   let selectedSummaryYear = "";
   let openSummaryYear = "";
   let openSummaryMonth = "";
+  let openSummaryField = "";
   const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
 
   function demoRecords() {
@@ -1140,8 +1141,49 @@
     });
   }
 
+  function getFieldKey(record) {
+    return String(record?.field || "(未設定)");
+  }
+
+  function filterRecordsByField(records, fieldKey) {
+    const key = String(fieldKey || "(未設定)");
+    return records.filter((record) => getFieldKey(record) === key);
+  }
+
+  function buildFieldMonthlyComparison(records, year, fieldKey) {
+    const currentYear = String(year || "").slice(0, 4);
+    const previousYear = String(Number(currentYear) - 1);
+    const current = buildMonthlyYearTotals(filterRecordsByField(records, fieldKey), currentYear);
+    const previous = buildMonthlyYearTotals(filterRecordsByField(records, fieldKey), previousYear);
+    return current.map((item, index) => ({
+      key: item.key,
+      label: formatMonthShort(item.key),
+      current: item.total,
+      previous: previous[index]?.total || 0,
+      diff: Math.round((item.total - (previous[index]?.total || 0)) * 10) / 10,
+    })).filter((item) => item.current > 0 || item.previous > 0);
+  }
+
   function renderMetricBar(width, className = "") {
     return `<span class="summaryMetricBar ${className}"><span style="width:${Math.max(0, Math.min(100, width))}%"></span></span>`;
+  }
+
+  function renderFieldMonthlyTrend(records, year, fieldKey) {
+    const rows = buildFieldMonthlyComparison(records, year, fieldKey);
+    if (!rows.length) return `<div class="summaryEmpty">月別推移データはありません</div>`;
+    const max = Math.max(0, ...rows.map((item) => item.current));
+    return `<div class="summaryFieldTrend">
+      <div class="summaryFieldTrend__title">${escapeHtml(formatFieldName(fieldKey))} 月別推移</div>
+      ${rows.map((item) => {
+        const diffText = item.previous > 0 ? `${item.diff >= 0 ? "+" : ""}${fmtWeightOne(item.diff)}kg` : "前年なし";
+        return `<div class="summaryFieldTrend__row">
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(fmtWeightOne(item.current))}kg</strong>
+          <small>${escapeHtml(String(Number(year) - 1))}年 ${escapeHtml(fmtWeightOne(item.previous))}kg / ${escapeHtml(diffText)}</small>
+          ${renderMetricBar(max ? (item.current / max) * 100 : 0, getFieldBadgeClass(fieldKey))}
+        </div>`;
+      }).join("")}
+    </div>`;
   }
 
   function formatDateJapanese(dateValue) {
@@ -1186,7 +1228,7 @@
 
   function formatFieldName(field) {
     const raw = String(field || "").trim();
-    if (!raw) return "(未設定)";
+    if (!raw || raw === "(未設定)") return "(未設定)";
     if (/^3上$/.test(raw) || /^3工区上$/.test(raw)) return "3工区上";
     if (/^3下$/.test(raw) || /^3工区下$/.test(raw)) return "3工区下";
     return /工区$/.test(raw) ? raw : `${raw}工区`;
@@ -1408,7 +1450,9 @@
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
     const yearMonthGroups = buildAggregate(yearRecords, (item) => getRecordMonth(item));
-    const fieldGroups = buildAggregate(yearRecords, (item) => item.field).sort((a, b) => Number(b.total) - Number(a.total));
+    const fieldGroups = buildAggregate(yearRecords, (item) => getFieldKey(item)).sort((a, b) => Number(b.total) - Number(a.total));
+    const previousFieldGroups = buildAggregate(previousYearRecords, (item) => getFieldKey(item));
+    const previousFieldMap = new Map(previousFieldGroups.map((item) => [item.key, item]));
     const gradeGroups = buildAggregate(list, (item) => item.grade);
     const currentMonthGroup = monthGroups.find((item) => item.key === selectedMonth) || null;
     const annualGroup = yearRecords.length ? { key: selectedYear, total: annualSummary.total, count: yearRecords.length } : null;
@@ -1428,12 +1472,22 @@
         </div>`).join("")
       : `<div class="summaryEmpty">この年の月別データはありません</div>`;
     const fieldComparisonHtml = fieldGroups.length
-      ? fieldGroups.map((item) => `
-        <div class="summaryMetricRow summaryMetricRow--field">
-          <span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}">${escapeHtml(formatFieldName(item.key))}</span>
-          <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
-          ${renderMetricBar(fieldBarMax ? (item.total / fieldBarMax) * 100 : 0, getFieldBadgeClass(item.key))}
-        </div>`).join("")
+      ? fieldGroups.map((item) => {
+        const isOpen = openSummaryField === item.key;
+        const previous = previousFieldMap.get(item.key)?.total || 0;
+        return `<div class="summaryFieldBlock ${isOpen ? "is-open" : ""}">
+          <button class="summaryMetricRow summaryMetricRow--field summaryMetricField" type="button" data-summary-field="${escapeAttr(item.key)}" aria-expanded="${isOpen ? "true" : "false"}">
+            <span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}">${escapeHtml(formatFieldName(item.key))}</span>
+            <span class="summaryMetricField__numbers">
+              <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
+              <small>${formatComparison(item.total, previous, true)}</small>
+            </span>
+            ${renderMetricBar(fieldBarMax ? (item.total / fieldBarMax) * 100 : 0, getFieldBadgeClass(item.key))}
+            <span class="summaryLine__arrow">${isOpen ? "⌃" : "〉"}</span>
+          </button>
+          ${isOpen ? renderFieldMonthlyTrend(base, selectedYear, item.key) : ""}
+        </div>`;
+      }).join("")
       : `<div class="summaryEmpty">この年の圃場別データはありません</div>`;
     const summaryYearHtml = allYearGroups.length
       ? allYearGroups.map((item) => {
@@ -2323,23 +2377,38 @@
     });
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
+      const fieldBtn = target?.closest("[data-summary-field]");
       const yearBtn = target?.closest("[data-summary-year]");
       const monthBtn = target?.closest("[data-summary-month]");
+      if (fieldBtn && fieldBtn instanceof HTMLElement) {
+        ev.preventDefault();
+        const nextField = String(fieldBtn.getAttribute("data-summary-field") || "");
+        if (nextField) {
+          openSummaryField = openSummaryField === nextField ? "" : nextField;
+          render();
+        }
+        return;
+      }
       if (yearBtn && yearBtn instanceof HTMLElement) {
+        ev.preventDefault();
         const nextYear = String(yearBtn.getAttribute("data-summary-year") || "").slice(0, 4);
         if (nextYear) {
           openSummaryYear = openSummaryYear === nextYear ? "" : nextYear;
           if (openSummaryYear !== nextYear) openSummaryMonth = "";
+          if (selectedSummaryYear !== nextYear) openSummaryField = "";
           selectedSummaryYear = nextYear;
           render();
         }
+        return;
       }
       if (monthBtn && monthBtn instanceof HTMLElement) {
+        ev.preventDefault();
         const nextYear = String(monthBtn.getAttribute("data-summary-year") || "").slice(0, 4);
         const nextMonth = String(monthBtn.getAttribute("data-summary-month") || "").slice(0, 7);
         if (nextYear && nextMonth) {
           if (openSummaryYear !== nextYear) openSummaryYear = nextYear;
           openSummaryMonth = openSummaryMonth === nextMonth && openSummaryYear === nextYear ? "" : nextMonth;
+          if (selectedSummaryYear !== nextYear) openSummaryField = "";
           selectedSummaryYear = nextYear;
           render();
         }
