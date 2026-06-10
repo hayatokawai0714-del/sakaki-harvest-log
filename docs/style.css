@@ -161,6 +161,16 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .calcTotal__label{font-size:13px;color:#14532d;font-weight:900}
 .calcTotal__value{font-size:18px;font-weight:900;color:#0f172a}
 .calcTotal__value span{font-size:32px;letter-spacing:0;font-weight:900}
+.ocrCandidatesSummary{
+  padding:10px 12px;
+  border-radius:12px;
+  background:rgba(15,23,42,.03);
+  border:1px solid rgba(15,23,42,.08);
+  font-size:13px;
+  font-weight:800;
+  color:#0f172a;
+  line-height:1.5;
+}
 .btn--wide{width:100%;justify-content:center;padding:13px 16px}
 .weights{display:flex;flex-direction:column;gap:10px}
 .weights--internal{
@@ -172,8 +182,8 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
   border:1px solid rgba(15,23,42,.10);
   background:#fff;
   color:#0f172a;
-  font-size:14px;
-  font-weight:800;
+  font-size:15px;
+  font-weight:900;
   line-height:1.5;
   word-break:break-word;
 }
@@ -238,11 +248,24 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .ocrCandidate{
   display:grid;
   grid-template-columns:1fr auto;
-  gap:8px;
+  gap:6px;
   align-items:center;
+  padding:8px 10px;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:12px;
+  background:#fff;
 }
-.ocrCandidate input{margin:0}
-.ocrCandidate__del{align-self:stretch}
+.ocrCandidate input{
+  margin:0;
+  min-height:42px;
+  padding:8px 10px;
+  font-size:16px;
+}
+.ocrCandidate__del{
+  align-self:stretch;
+  padding:8px 10px;
+  font-size:12px;
+}
 
 .ocrBadge{font-size:12px;color:var(--muted);font-weight:800}
 .saveConfirm{
@@ -260,7 +283,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .saveConfirm__grid span{color:var(--muted);font-weight:800}
 .saveConfirm__grid strong{font-weight:900}
 .saveConfirm__total{display:flex;align-items:baseline;justify-content:space-between;border-top:1px solid rgba(15,23,42,.08);padding-top:10px;font-size:14px;font-weight:900}
-.saveConfirm__total strong{font-size:28px}
+.saveConfirm__total strong{font-size:34px}
 
 .filters{padding:0 16px 12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .summary{padding:0 16px 12px;color:var(--muted);font-size:13px}

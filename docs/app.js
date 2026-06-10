@@ -53,7 +53,9 @@
   const ocrImageLibraryEl = /** @type {HTMLInputElement} */ ($("#ocrImageLibrary"));
   const ocrPreviewEl = /** @type {HTMLImageElement} */ ($("#ocrPreview"));
   const ocrStatusEl = $("#ocrStatus");
+  const ocrCandidatesSummaryEl = $("#ocrCandidatesSummary");
   const ocrCandidatesEl = $("#ocrCandidates");
+  const btnToggleOcrDetails = $("#btnToggleOcrDetails");
   const calcManualWeightEl = /** @type {HTMLInputElement} */ ($("#calcManualWeight"));
   const btnCalcManualAdd = $("#btnCalcManualAdd");
   const calcTotalWeightEl = $("#calcTotalWeight");
@@ -102,6 +104,7 @@
   let ocrCandidateValues = [];
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
+  let ocrDetailsOpen = false;
   let showAllLogs = false;
   let showAllPastMonths = false;
   let showDayBreakdown = false;
@@ -213,6 +216,14 @@
     ocrPreviewEl.style.display = src ? "block" : "none";
   }
 
+  function setOcrDetailsOpen(open) {
+    ocrDetailsOpen = Boolean(open);
+    if (ocrCandidatesEl) ocrCandidatesEl.hidden = !ocrDetailsOpen;
+    if (btnToggleOcrDetails) {
+      btnToggleOcrDetails.textContent = ocrDetailsOpen ? "編集を閉じる" : "読み取り結果を編集";
+    }
+  }
+
   function handleOcrImageFile(file) {
     ocrImageFile = file;
     if (!file) {
@@ -220,6 +231,7 @@
       setOcrPreview("");
       setOcrStatus("未読み取り");
       renderOcrCandidates([]);
+      setOcrDetailsOpen(false);
       return;
     }
 
@@ -229,6 +241,7 @@
       setOcrPreview(ocrImageDataUrl);
       setOcrStatus("写真を読み取り中です...");
       toast("warn", "写真を読み取り中です...");
+      setOcrDetailsOpen(false);
       void readOcrImage("replace");
     };
     reader.onerror = () => {
@@ -460,7 +473,15 @@
   function renderOcrCandidates(values) {
     const items = Array.isArray(values) ? values : [];
     ocrCandidateValues = items.map((item) => String(item || ""));
+    if (ocrCandidatesSummaryEl) {
+      ocrCandidatesSummaryEl.textContent = items.length
+        ? `読み取り結果：${items.length}件 / ${items.map((value) => `${fmtWeightOne(Number(value) || 0)}kg`).slice(0, 4).join(" / ")}${items.length > 4 ? " / ..." : ""}`
+        : "未読み取り";
+    }
     ocrCandidatesEl.innerHTML = "";
+    if (!ocrDetailsOpen) {
+      ocrCandidatesEl.hidden = true;
+    }
 
     if (items.length === 0) {
       ocrCandidatesEl.innerHTML = `<div class="hint">写真を撮るか、重量を手入力してください。</div>`;
@@ -498,6 +519,21 @@
     updateCalcTotal();
   }
 
+  function toggleOcrDetails() {
+    setOcrDetailsOpen(!ocrDetailsOpen);
+  }
+
+  function renderWeightSummaryList(weights) {
+    const values = Array.isArray(weights) ? weights.map((value) => Number(value)).filter((value) => Number.isFinite(value)) : [];
+    if (!values.length) {
+      formWeightListEl.textContent = "重量: 0.00kg";
+      formWeightListEl.classList.add("is-empty");
+      return;
+    }
+    formWeightListEl.textContent = `重量: ${values.map((value) => fmtWeightOne(value)).join("kg / ")}kg`;
+    formWeightListEl.classList.remove("is-empty");
+  }
+
   function getCalcWeights() {
     return ocrCandidateDetails
       .map((item) => item.corrected || postCorrectOcrValue(item.rawText))
@@ -508,6 +544,13 @@
   function updateCalcTotal() {
     const total = sumWeights(getCalcWeights());
     calcTotalWeightEl.textContent = total.toFixed(2);
+    if (ocrCandidatesSummaryEl) {
+      const preview = ocrCandidateValues.slice(0, 4).map((value) => `${fmtWeightOne(Number(value) || 0)}kg`);
+      const suffix = ocrCandidateValues.length > 4 ? " / ..." : "";
+      ocrCandidatesSummaryEl.textContent = ocrCandidateValues.length
+        ? `読み取り結果：${ocrCandidateValues.length}件 / ${preview.join(" / ")}${suffix}`
+        : "読み取り結果：未読み取り";
+    }
     syncCalcToFormWeights();
   }
 
@@ -560,6 +603,7 @@
       return;
     }
     const applyMode = mode === "replace" ? "replace" : "append";
+    setOcrDetailsOpen(false);
     setOcrStatus("写真を読み取り中です...");
 
     try {
@@ -958,11 +1002,11 @@
   function renderFormWeightSummary(weights) {
     const values = Array.isArray(weights) ? weights : [];
     if (!values.length) {
-      formWeightListEl.textContent = "未反映";
+      formWeightListEl.textContent = "重量: 0.00kg";
       formWeightListEl.classList.add("is-empty");
       return;
     }
-    formWeightListEl.textContent = values.map((value) => `${Number(value).toFixed(2)} kg`).join(" / ");
+    formWeightListEl.textContent = `重量: ${sumWeights(values).toFixed(2)}kg`;
     formWeightListEl.classList.remove("is-empty");
   }
 
@@ -2091,6 +2135,7 @@
     if (calcManualWeightEl) calcManualWeightEl.value = "";
     setOcrPreview("");
     setOcrStatus("未読み取り");
+    setOcrDetailsOpen(false);
     renderOcrCandidates([]);
 
     // other user label
@@ -2140,6 +2185,7 @@
 
     monthEl.value = "";
     monthEl.dataset.manual = "";
+    setOcrDetailsOpen(false);
     if (demoMode) {
       const demoDate = entries[0]?.date || todayStr();
       monthEl.value = "";
@@ -2168,6 +2214,7 @@
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
     btnCalcManualAdd.addEventListener("click", addManualCalcWeight);
+    btnToggleOcrDetails.addEventListener("click", toggleOcrDetails);
     calcManualWeightEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
