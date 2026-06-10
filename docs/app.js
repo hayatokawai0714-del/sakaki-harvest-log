@@ -479,9 +479,7 @@
         : "未読み取り";
     }
     ocrCandidatesEl.innerHTML = "";
-    if (!ocrDetailsOpen) {
-      ocrCandidatesEl.hidden = true;
-    }
+    ocrCandidatesEl.hidden = !ocrDetailsOpen;
 
     if (items.length === 0) {
       ocrCandidatesEl.innerHTML = `<div class="hint">写真を撮るか、重量を手入力してください。</div>`;
@@ -521,6 +519,7 @@
 
   function toggleOcrDetails() {
     setOcrDetailsOpen(!ocrDetailsOpen);
+    renderOcrCandidates(ocrCandidateValues);
   }
 
   function renderWeightSummaryList(weights) {
@@ -2214,7 +2213,6 @@
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
     btnCalcManualAdd.addEventListener("click", addManualCalcWeight);
-    btnToggleOcrDetails.addEventListener("click", toggleOcrDetails);
     calcManualWeightEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
         ev.preventDefault();
@@ -2227,6 +2225,13 @@
     $("#btnClearTests").addEventListener("click", () => void clearTestData());
 
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
+    document.addEventListener("click", (ev) => {
+      const target = /** @type {HTMLElement | null} */ (ev.target);
+      if (target?.closest("#btnToggleOcrDetails")) {
+        ev.preventDefault();
+        toggleOcrDetails();
+      }
+    });
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
       const yearBtn = target?.closest("[data-summary-year]");
