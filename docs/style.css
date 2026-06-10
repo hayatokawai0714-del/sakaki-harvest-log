@@ -296,6 +296,27 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryCard__value{font-size:16px;font-weight:900;margin-top:4px}
 .summaryCard__meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
 .summaryCard__list{display:flex;flex-direction:column;gap:8px}
+.summaryMetric{display:grid;gap:4px}
+.summaryMetric__year{font-size:13px;font-weight:800;color:var(--muted)}
+.summaryMetric__value{font-size:30px;line-height:1.05;font-weight:950;color:#0f172a}
+.summaryMetric__meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px;font-weight:800;color:var(--muted)}
+.summaryMetric__delta{font-weight:900}
+.summaryMetric__delta.is-plus{color:#047857}
+.summaryMetric__delta.is-minus{color:#b91c1c}
+.summaryMetric__muted{color:var(--muted)}
+.summaryMetricRow{display:grid;grid-template-columns:72px minmax(72px,auto) 1fr;align-items:center;gap:8px;font-size:13px}
+.summaryMetricRow strong{font-size:15px;font-weight:900;color:#0f172a;text-align:right;white-space:nowrap}
+.summaryMetricRow--field{grid-template-columns:max-content minmax(72px,auto) 1fr}
+.summaryMetricBar{display:block;height:8px;border-radius:999px;background:rgba(15,23,42,.07);overflow:hidden}
+.summaryMetricBar span{display:block;height:100%;border-radius:inherit;background:#166534}
+.summaryMetricBar.item__badge--field-1 span{background:#b91c1c}
+.summaryMetricBar.item__badge--field-2 span{background:#1d4ed8}
+.summaryMetricBar.item__badge--field-3上 span,.summaryMetricBar.item__badge--field-3工区上 span{background:#16a34a}
+.summaryMetricBar.item__badge--field-3下 span,.summaryMetricBar.item__badge--field-3工区下 span{background:#9333ea}
+.summaryMetricBar.item__badge--field-4 span{background:#f97316}
+.summaryMetricBar.item__badge--field-5 span{background:#a16207}
+.summaryMetricBar.item__badge--field-6 span{background:#475569}
+.summaryMetricBar.item__badge--field-7 span{background:#ec4899}
 .summaryModeSwitch{display:none}
 .summaryYearSwitch{display:flex;gap:6px;flex-wrap:wrap}
 .summaryMonthSwitch{display:flex;gap:6px;flex-wrap:wrap}

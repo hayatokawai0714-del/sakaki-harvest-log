@@ -1097,13 +1097,51 @@
     for (const item of list) {
       const key = keySelector(item) || "(未設定)";
       const current = map.get(key) || { total: 0, count: 0 };
-      current.total += Number(item.total_weight) || 0;
+      current.total += getRecordTotal(item);
       current.count += 1;
       map.set(key, current);
     }
     return [...map.entries()]
       .sort((a, b) => a[0].localeCompare(b[0], "ja"))
       .map(([key, value]) => ({ key, total: Math.round(value.total * 100) / 100, count: value.count }));
+  }
+
+  function getRecordTotal(record) {
+    const total = Number(record?.total_weight);
+    if (Number.isFinite(total) && total > 0) return total;
+    const weights = Array.isArray(record?.weights) ? record.weights.map(Number).filter((value) => Number.isFinite(value)) : [];
+    return sumWeights(weights);
+  }
+
+  function getRecordSummary(records) {
+    const items = Array.isArray(records) ? records : [];
+    return { total: sumWeights(items.map((item) => getRecordTotal(item))), count: items.length };
+  }
+
+  function formatComparison(current, previous, withDiff = false) {
+    if (!Number.isFinite(previous) || previous <= 0) return `<span class="summaryMetric__muted">前年データなし</span>`;
+    const diff = Math.round((current - previous) * 10) / 10;
+    const percent = Math.round(((current - previous) / previous) * 1000) / 10;
+    const sign = percent >= 0 ? "+" : "";
+    const diffSign = diff >= 0 ? "+" : "";
+    return `
+      <span class="summaryMetric__delta ${percent >= 0 ? "is-plus" : "is-minus"}">前年比 ${sign}${percent.toFixed(1)}%</span>
+      ${withDiff ? `<span class="summaryMetric__muted">前年差 ${diffSign}${fmtWeightOne(diff)}kg</span>` : ""}
+    `;
+  }
+
+  function buildMonthlyYearTotals(records, year) {
+    const yearText = String(year || "").slice(0, 4);
+    const groups = buildAggregate(filterRecordsByYear(records, yearText), (item) => getRecordMonth(item));
+    const map = new Map(groups.map((item) => [item.key, item]));
+    return Array.from({ length: 12 }, (_, index) => {
+      const key = `${yearText}-${String(index + 1).padStart(2, "0")}`;
+      return map.get(key) || { key, total: 0, count: 0 };
+    });
+  }
+
+  function renderMetricBar(width, className = "") {
+    return `<span class="summaryMetricBar ${className}"><span style="width:${Math.max(0, Math.min(100, width))}%"></span></span>`;
   }
 
   function formatDateJapanese(dateValue) {
@@ -1345,13 +1383,23 @@
     const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
     const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
     selectedSummaryYear = selectedYear;
+    const currentMonthKey = monthStr();
+    const previousCurrentMonthKey = `${Number(currentMonthKey.slice(0, 4)) - 1}-${currentMonthKey.slice(5, 7)}`;
+    const currentMonthSummary = getRecordSummary(filterRecordsByMonth(base, currentMonthKey));
+    const previousCurrentMonthSummary = getRecordSummary(filterRecordsByMonth(base, previousCurrentMonthKey));
     const monthRecords = filterRecordsByMonth(base, selectedMonth);
     const yearRecords = filterRecordsByYear(base, selectedYear);
+    const previousYearRecords = filterRecordsByYear(base, String(Number(selectedYear) - 1));
+    const annualSummary = getRecordSummary(yearRecords);
+    const previousAnnualSummary = getRecordSummary(previousYearRecords);
+    const monthlyYearTotals = buildMonthlyYearTotals(base, selectedYear);
+    const visibleMonthlyYearTotals = monthlyYearTotals.filter((item) => item.total > 0 || item.count > 0);
+    const monthlyYearMax = Math.max(0, ...monthlyYearTotals.map((item) => Number(item.total) || 0));
     const allYearGroups = availableYears.map((year) => {
       const items = filterRecordsByYear(base, year);
       return {
         key: year,
-        total: sumWeights(items.map((item) => Number(item.total_weight) || 0)),
+        total: getRecordSummary(items).total,
         count: items.length,
         months: buildAggregate(items, (item) => getRecordMonth(item)).slice().reverse(),
       };
@@ -1360,10 +1408,10 @@
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
     const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
     const yearMonthGroups = buildAggregate(yearRecords, (item) => getRecordMonth(item));
-    const fieldGroups = buildAggregate(list, (item) => formatFieldName(item.field));
+    const fieldGroups = buildAggregate(yearRecords, (item) => item.field).sort((a, b) => Number(b.total) - Number(a.total));
     const gradeGroups = buildAggregate(list, (item) => item.grade);
     const currentMonthGroup = monthGroups.find((item) => item.key === selectedMonth) || null;
-    const annualGroup = yearRecords.length ? { key: selectedYear, total: sumWeights(yearRecords.map((item) => Number(item.total_weight) || 0)), count: yearRecords.length } : null;
+    const annualGroup = yearRecords.length ? { key: selectedYear, total: annualSummary.total, count: yearRecords.length } : null;
     const visiblePastMonths = showAllPastMonths ? monthGroups.filter((item) => item.key !== selectedMonth) : [];
     const monthBarMax = Math.max(0, ...monthGroups.map((item) => Number(item.total) || 0));
     const fieldBarMax = Math.max(0, ...fieldGroups.map((item) => Number(item.total) || 0));
@@ -1371,6 +1419,22 @@
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
     const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
+    const monthlyTrendHtml = visibleMonthlyYearTotals.length
+      ? visibleMonthlyYearTotals.map((item) => `
+        <div class="summaryMetricRow">
+          <span>${escapeHtml(formatMonthShort(item.key))}</span>
+          <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
+          ${renderMetricBar(monthlyYearMax ? (item.total / monthlyYearMax) * 100 : 0)}
+        </div>`).join("")
+      : `<div class="summaryEmpty">この年の月別データはありません</div>`;
+    const fieldComparisonHtml = fieldGroups.length
+      ? fieldGroups.map((item) => `
+        <div class="summaryMetricRow summaryMetricRow--field">
+          <span class="item__pill item__pill--field ${getFieldBadgeClass(item.key)}">${escapeHtml(formatFieldName(item.key))}</span>
+          <strong>${escapeHtml(fmtWeightOne(item.total))}kg</strong>
+          ${renderMetricBar(fieldBarMax ? (item.total / fieldBarMax) * 100 : 0, getFieldBadgeClass(item.key))}
+        </div>`).join("")
+      : `<div class="summaryEmpty">この年の圃場別データはありません</div>`;
     const summaryYearHtml = allYearGroups.length
       ? allYearGroups.map((item) => {
           const months = item.months || [];
@@ -1409,6 +1473,31 @@
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
+        <div class="summaryCard summaryMetric summaryMetric--current">
+          <div class="summaryCard__label">今月の収穫量</div>
+          <div class="summaryMetric__value">${escapeHtml(fmtWeightOne(currentMonthSummary.total))}kg</div>
+          <div class="summaryMetric__meta">${formatMonthJapanese(currentMonthKey)} / 収穫${escapeHtml(currentMonthSummary.count)}回</div>
+          <div class="summaryMetric__meta">${formatComparison(currentMonthSummary.total, previousCurrentMonthSummary.total)}</div>
+        </div>
+        <div class="summaryCard summaryMetric">
+          <div class="summaryCard__label">年間収穫量</div>
+          <div class="summaryMetric__year">${escapeHtml(selectedYear || "-")}年</div>
+          <div class="summaryMetric__value">${escapeHtml(fmtWeightOne(annualSummary.total))}kg</div>
+          <div class="summaryMetric__meta">${formatComparison(annualSummary.total, previousAnnualSummary.total, true)}</div>
+          <div class="summaryMetric__meta">収穫${escapeHtml(annualSummary.count)}回</div>
+        </div>
+        <div class="summaryCard summaryCard--list">
+          <div class="summaryCard__label">月別収穫量</div>
+          <div class="summaryCard__list">
+            ${monthlyTrendHtml}
+          </div>
+        </div>
+        <div class="summaryCard summaryCard--list">
+          <div class="summaryCard__label">圃場別収穫量</div>
+          <div class="summaryCard__list">
+            ${fieldComparisonHtml}
+          </div>
+        </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">年間集計</div>
           <div class="summaryCard__list">
