@@ -89,10 +89,10 @@
           <div class="ocrPanel__results">
             <div class="labelRow">
               <label>読み取り結果</label>
-              <button class="btn btn--ghost btn--sm" id="btnToggleOcrDetails" type="button">読み取り結果を編集</button>
+              <button class="btn btn--ghost btn--sm" id="btnToggleOcrDetails" type="button" aria-controls="ocrCandidates" aria-expanded="false">読み取り結果を編集</button>
             </div>
             <div id="ocrCandidatesSummary" class="ocrCandidatesSummary">未読み取り</div>
-            <div id="ocrCandidates" class="ocrCandidates"></div>
+            <div id="ocrCandidates" class="ocrCandidates" hidden></div>
           </div>
         </section>
 

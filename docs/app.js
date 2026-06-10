@@ -218,9 +218,12 @@
 
   function setOcrDetailsOpen(open) {
     ocrDetailsOpen = Boolean(open);
-    if (ocrCandidatesEl) ocrCandidatesEl.hidden = !ocrDetailsOpen;
+    if (ocrCandidatesEl) {
+      ocrCandidatesEl.toggleAttribute("hidden", !ocrDetailsOpen);
+    }
     if (btnToggleOcrDetails) {
       btnToggleOcrDetails.textContent = ocrDetailsOpen ? "編集を閉じる" : "読み取り結果を編集";
+      btnToggleOcrDetails.setAttribute("aria-expanded", String(ocrDetailsOpen));
     }
   }
 
@@ -479,7 +482,7 @@
         : "未読み取り";
     }
     ocrCandidatesEl.innerHTML = "";
-    ocrCandidatesEl.hidden = !ocrDetailsOpen;
+    ocrCandidatesEl.toggleAttribute("hidden", !ocrDetailsOpen);
 
     if (items.length === 0) {
       ocrCandidatesEl.innerHTML = `<div class="hint">写真を撮るか、重量を手入力してください。</div>`;
@@ -2225,12 +2228,9 @@
     $("#btnClearTests").addEventListener("click", () => void clearTestData());
 
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
-    document.addEventListener("click", (ev) => {
-      const target = /** @type {HTMLElement | null} */ (ev.target);
-      if (target?.closest("#btnToggleOcrDetails")) {
-        ev.preventDefault();
-        toggleOcrDetails();
-      }
+    btnToggleOcrDetails?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      toggleOcrDetails();
     });
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);

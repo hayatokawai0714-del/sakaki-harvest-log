@@ -245,6 +245,7 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 }
 .ocrPanel__meta,.ocrPanel__results{display:flex;flex-direction:column;gap:10px}
 .ocrCandidates{display:flex;flex-direction:column;gap:10px}
+.ocrCandidates[hidden]{display:none!important}
 .ocrCandidate{
   display:grid;
   grid-template-columns:1fr auto;
