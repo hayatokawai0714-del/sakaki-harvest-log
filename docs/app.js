@@ -1437,11 +1437,6 @@
     const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
     const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
     selectedSummaryYear = selectedYear;
-    const currentMonthKey = monthStr();
-    const previousCurrentMonthKey = `${Number(currentMonthKey.slice(0, 4)) - 1}-${currentMonthKey.slice(5, 7)}`;
-    const currentMonthSummary = getRecordSummary(filterRecordsByMonth(base, currentMonthKey));
-    const previousCurrentMonthSummary = getRecordSummary(filterRecordsByMonth(base, previousCurrentMonthKey));
-    const monthRecords = filterRecordsByMonth(base, selectedMonth);
     const yearRecords = filterRecordsByYear(base, selectedYear);
     const previousYearRecords = filterRecordsByYear(base, String(Number(selectedYear) - 1));
     const annualSummary = getRecordSummary(yearRecords);
@@ -1460,21 +1455,27 @@
     });
     const list = filtered(base);
     const visibleList = list.slice(0, showAllLogs ? list.length : 5);
-    const monthGroups = buildAggregate(monthRecords, (item) => getRecordMonth(item)).slice().reverse();
     const yearMonthGroups = buildAggregate(yearRecords, (item) => getRecordMonth(item));
     const fieldGroups = buildAggregate(yearRecords, (item) => getFieldKey(item)).sort((a, b) => Number(b.total) - Number(a.total));
     const previousFieldGroups = buildAggregate(previousYearRecords, (item) => getFieldKey(item));
     const previousFieldMap = new Map(previousFieldGroups.map((item) => [item.key, item]));
-    const gradeGroups = buildAggregate(list, (item) => item.grade);
-    const currentMonthGroup = monthGroups.find((item) => item.key === selectedMonth) || null;
-    const annualGroup = yearRecords.length ? { key: selectedYear, total: annualSummary.total, count: yearRecords.length } : null;
-    const visiblePastMonths = showAllPastMonths ? monthGroups.filter((item) => item.key !== selectedMonth) : [];
-    const monthBarMax = Math.max(0, ...monthGroups.map((item) => Number(item.total) || 0));
     const fieldBarMax = Math.max(0, ...fieldGroups.map((item) => Number(item.total) || 0));
     const visibleYearMonths = yearMonthGroups;
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
     const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
+    const selectedMonthForYear = `${selectedYear || todayStr().slice(0, 4)}-${todayStr().slice(5, 7)}`;
+    const previousSelectedMonthKey = `${Number(String(selectedMonthForYear).slice(0, 4)) - 1}-${String(selectedMonthForYear).slice(5, 7)}`;
+    const selectedMonthSummary = getRecordSummary(filterRecordsByMonth(base, selectedMonthForYear));
+    const previousSelectedMonthSummary = getRecordSummary(filterRecordsByMonth(base, previousSelectedMonthKey));
+    const yearSwitchHtml = availableYears.length
+      ? `<div class="summaryYearPicker">
+          <div class="summaryYearPicker__label">集計年</div>
+          <div class="summaryYearPicker__buttons">
+            ${availableYears.map((year) => `<button class="summaryYearPicker__btn ${year === selectedYear ? "is-active" : ""}" type="button" data-summary-select-year="${escapeAttr(year)}" aria-pressed="${year === selectedYear ? "true" : "false"}">${escapeHtml(year)}年</button>`).join("")}
+          </div>
+        </div>`
+      : "";
     const monthlyTrendHtml = monthlyYearTotals.length
       ? monthlyYearTotals.map((item, index) => {
         const previous = previousMonthlyYearTotals[index]?.total || 0;
@@ -1514,8 +1515,9 @@
         </div>`;
       }).join("")
       : `<div class="summaryEmpty">この年の圃場別データはありません</div>`;
-    const summaryYearHtml = allYearGroups.length
-      ? allYearGroups.map((item) => {
+    const selectedYearGroup = allYearGroups.find((item) => item.key === selectedYear);
+    const summaryYearHtml = selectedYearGroup
+      ? [selectedYearGroup].map((item) => {
           const months = item.months || [];
           const isYearOpen = openSummaryYear === item.key;
           const yearArrow = isYearOpen ? "⌃" : "〉";
@@ -1552,11 +1554,12 @@
 
     summaryEl.innerHTML = `
       <div class="summaryGrid">
+        ${yearSwitchHtml}
         <div class="summaryCard summaryMetric summaryMetric--current">
-          <div class="summaryCard__label">今月の収穫量</div>
-          <div class="summaryMetric__value">${escapeHtml(fmtWeightOne(currentMonthSummary.total))}kg</div>
-          <div class="summaryMetric__meta">${formatMonthJapanese(currentMonthKey)} / 収穫${escapeHtml(currentMonthSummary.count)}回</div>
-          <div class="summaryMetric__meta">${formatComparison(currentMonthSummary.total, previousCurrentMonthSummary.total)}</div>
+          <div class="summaryCard__label">${selectedYear === todayStr().slice(0, 4) ? "今月の収穫量" : `${escapeHtml(formatMonthJapanese(selectedMonthForYear))}の収穫量`}</div>
+          <div class="summaryMetric__value">${escapeHtml(fmtWeightOne(selectedMonthSummary.total))}kg</div>
+          <div class="summaryMetric__meta">${formatMonthJapanese(selectedMonthForYear)} / 収穫${escapeHtml(selectedMonthSummary.count)}回</div>
+          <div class="summaryMetric__meta">${formatComparison(selectedMonthSummary.total, previousSelectedMonthSummary.total)}</div>
         </div>
         <div class="summaryCard summaryMetric">
           <div class="summaryCard__label">年間収穫量</div>
@@ -1578,7 +1581,8 @@
           </div>
         </div>
         <div class="summaryCard summaryCard--list">
-          <div class="summaryCard__label">年間集計</div>
+          <div class="summaryCard__label">年間詳細</div>
+          <div class="summaryCard__meta">月別の収穫日を見る</div>
           <div class="summaryCard__list">
             ${summaryYearHtml}
           </div>
@@ -2402,9 +2406,22 @@
     });
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
+      const selectYearBtn = target?.closest("[data-summary-select-year]");
       const fieldBtn = target?.closest("[data-summary-field]");
       const yearBtn = target?.closest("[data-summary-year]");
       const monthBtn = target?.closest("[data-summary-month]");
+      if (selectYearBtn && selectYearBtn instanceof HTMLElement) {
+        ev.preventDefault();
+        const nextYear = String(selectYearBtn.getAttribute("data-summary-select-year") || "").slice(0, 4);
+        if (nextYear) {
+          selectedSummaryYear = nextYear;
+          openSummaryYear = "";
+          openSummaryMonth = "";
+          openSummaryField = "";
+          render();
+        }
+        return;
+      }
       if (fieldBtn && fieldBtn instanceof HTMLElement) {
         ev.preventDefault();
         const nextField = String(fieldBtn.getAttribute("data-summary-field") || "");

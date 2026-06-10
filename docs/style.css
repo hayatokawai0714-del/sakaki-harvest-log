@@ -296,6 +296,25 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .summaryCard__value{font-size:16px;font-weight:900;margin-top:4px}
 .summaryCard__meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
 .summaryCard__list{display:flex;flex-direction:column;gap:8px}
+.summaryYearPicker{
+  border:1px solid rgba(15,23,42,.10);
+  border-radius:14px;
+  padding:10px 12px;
+  background:#fff;
+}
+.summaryYearPicker__label{font-size:12px;font-weight:900;color:var(--muted);margin-bottom:8px}
+.summaryYearPicker__buttons{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.summaryYearPicker__btn{
+  flex:0 0 auto;
+  border:1px solid rgba(22,101,52,.22);
+  border-radius:999px;
+  background:#f8fafc;
+  color:#166534;
+  font-weight:900;
+  padding:8px 12px;
+  cursor:pointer;
+}
+.summaryYearPicker__btn.is-active{background:#166534;color:#fff;border-color:#166534}
 .summaryMetric{display:grid;gap:4px}
 .summaryMetric__year{font-size:13px;font-weight:800;color:var(--muted)}
 .summaryMetric__value{font-size:30px;line-height:1.05;font-weight:950;color:#0f172a}
