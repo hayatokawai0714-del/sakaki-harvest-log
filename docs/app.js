@@ -34,6 +34,9 @@
   const fieldEl = /** @type {HTMLSelectElement} */ ($("#field"));
   const gradeEl = /** @type {HTMLSelectElement} */ ($("#grade"));
   const userEl = /** @type {HTMLSelectElement} */ ($("#user"));
+  const lockUserEl = /** @type {HTMLInputElement} */ ($("#lockUser"));
+  const lockUserStatusEl = $("#lockUserStatus");
+  const saveNoticeEl = $("#saveNotice");
   const memoEl = /** @type {HTMLTextAreaElement} */ ($("#memo"));
   const weightsWrap = $("#weights");
   const formWeightListEl = $("#formWeightList");
@@ -105,6 +108,8 @@
   /** @type {{ rawText:string, corrected:string, confidence:number, valid:boolean }[]} */
   let ocrCandidateDetails = [];
   let ocrDetailsOpen = false;
+  let saveButtonResetTimer = 0;
+  let recentlySavedId = "";
   let showAllLogs = false;
   let showAllPastMonths = false;
   let showDayBreakdown = false;
@@ -662,12 +667,13 @@
 
   function loadSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { endpoint: "", otherUserLabel: "担当者" };
+    if (!raw) return { endpoint: "", otherUserLabel: "担当者", lockedUser: "" };
     const p = safeParseJSON(raw);
-    if (!p.ok || !p.value || typeof p.value !== "object") return { endpoint: "", otherUserLabel: "担当者" };
+    if (!p.ok || !p.value || typeof p.value !== "object") return { endpoint: "", otherUserLabel: "担当者", lockedUser: "" };
     return {
       endpoint: String(p.value.endpoint || ""),
       otherUserLabel: String(p.value.otherUserLabel || "担当者"),
+      lockedUser: String(p.value.lockedUser || ""),
     };
   }
 
@@ -678,6 +684,69 @@
   function getEndpoint() {
     const s = loadSettings();
     return (s.endpoint || GAS_ENDPOINT || "").trim();
+  }
+
+  function applyLockedUser() {
+    const settings = loadSettings();
+    const lockedUser = settings.lockedUser || "";
+    if (lockedUser && [...userEl.options].some((option) => option.value === lockedUser)) {
+      userEl.value = lockedUser;
+    }
+    lockUserEl.checked = Boolean(lockedUser);
+    lockUserStatusEl.textContent = lockedUser ? `入力者：${lockedUser}（固定中）` : "";
+    updateSaveConfirm();
+  }
+
+  function updateLockedUserFromUI() {
+    const settings = loadSettings();
+    settings.lockedUser = lockUserEl.checked ? userEl.value : "";
+    saveSettings(settings);
+    applyLockedUser();
+    toast(lockUserEl.checked ? "ok" : "warn", lockUserEl.checked ? "入力者を固定しました" : "入力者固定を解除しました");
+  }
+
+  function getSaveButton() {
+    return /** @type {HTMLButtonElement | null} */ (form.querySelector('button[type="submit"]'));
+  }
+
+  function setSaveButtonState(state) {
+    const button = getSaveButton();
+    if (!button) return;
+    window.clearTimeout(saveButtonResetTimer);
+    if (state === "saving") {
+      button.disabled = true;
+      button.textContent = "保存中...";
+      return;
+    }
+    if (state === "saved") {
+      button.disabled = true;
+      button.textContent = "保存しました";
+      saveButtonResetTimer = window.setTimeout(() => {
+        button.disabled = demoMode;
+        button.textContent = "保存する";
+      }, 3000);
+      return;
+    }
+    button.disabled = demoMode;
+    button.textContent = "保存する";
+  }
+
+  function showSaveNotice(entry, failed = false) {
+    if (!saveNoticeEl) return;
+    saveNoticeEl.hidden = false;
+    saveNoticeEl.className = `saveNotice ${failed ? "saveNotice--error" : "saveNotice--ok"}`;
+    saveNoticeEl.innerHTML = failed
+      ? "保存に失敗しました。通信状況を確認してください"
+      : `<strong>保存しました</strong><span>${escapeHtml(formatDateJapanese(entry.date))} ${escapeHtml(fmtWeight(entry.total_weight))}kg</span><small>次の入力ができます</small>`;
+    window.setTimeout(() => {
+      saveNoticeEl.hidden = true;
+    }, 5000);
+    if (!failed) {
+      window.setTimeout(() => {
+        recentlySavedId = "";
+        render();
+      }, 4500);
+    }
   }
 
   function getCloudRecordUrl(id = "") {
@@ -784,12 +853,7 @@
     if (!silent) toast("warn", "Cloudflare D1 から読込中...");
 
     try {
-      console.groupCollapsed("[Cloudflare] GET", getCloudRecordUrl());
       const result = await requestBackend(`${getCloudRecordUrl()}?t=${Date.now()}`, { method: "GET" });
-      console.log("response", result?.data);
-      console.log("records", result?.data?.records);
-      console.log("records.length", result?.data?.records?.length);
-      console.groupEnd();
 
       if (!result.ok || !result.data?.ok) throw new Error(String(result.data?.error || result.error || "Cloud API error"));
 
@@ -1603,7 +1667,7 @@
 
     for (const e of visibleList) {
       const item = document.createElement("div");
-      item.className = "item";
+      item.className = `item ${String(e.id) === recentlySavedId ? "item--saved" : ""}`;
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
       const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
@@ -1682,7 +1746,6 @@
 
   function setTransportMessage(mode) {
     toast("ok", `送信方式：${mode}`);
-    console.log("[Sheets] transport =", mode);
   }
 
   function setImportStatus(message) {
@@ -2043,32 +2106,22 @@
     const useFormTransport = detectSafariIOS() || true;
     const body = JSON.stringify(payload);
 
-    console.groupCollapsed("[Sheets] POST", endpoint);
-    console.log("payload =", payload);
-    console.log("userAgent =", navigator.userAgent);
-    console.log("transport =", useFormTransport ? "form" : "fetch");
-
     if (useFormTransport) {
       ensureSubmitProxy();
       if (!submitProxyForm || !submitPayloadInput) {
-        console.groupEnd();
         return { ok: false, error: "form送信の準備に失敗しました", transport: "form" };
       }
 
       submitProxyForm.action = endpoint;
       submitPayloadInput.value = body;
-      console.log("form.action =", submitProxyForm.action);
-      console.log("form.payload.length =", submitPayloadInput.value.length);
 
       try {
         submitProxyForm.submit();
       } catch (err) {
         console.error("[Sheets] form submit error =", err);
-        console.groupEnd();
         return { ok: false, error: `form submit error: ${String(err)}`, transport: "form" };
       }
 
-      console.groupEnd();
       return {
         ok: true,
         transport: "form",
@@ -2092,16 +2145,10 @@
     try {
       res = await fetch(endpoint, req);
       text = await res.text();
-      console.log("response.status =", res.status, res.statusText);
-      console.log("response.headers =", [...res.headers.entries()]);
-      console.log("response.text =", text);
     } catch (err) {
       console.error("[Sheets] POST fetch error =", err);
-      console.groupEnd();
       return { ok: false, error: `fetch error: ${String(err)}`, transport: "fetch" };
     }
-
-    console.groupEnd();
 
     const p = safeParseJSON(text);
     if (!p.ok) {
@@ -2123,7 +2170,6 @@
     if (!silent) toast("warn", "Sheetsから読み込み中...");
 
     try {
-      console.groupCollapsed("[Sheets] GET", endpoint);
       const res = await fetch(`${endpoint}${endpoint.includes("?") ? "&" : "?"}t=${Date.now()}`, {
         method: "GET",
         mode: "cors",
@@ -2132,27 +2178,18 @@
         redirect: "follow",
       });
       const text = await res.text();
-      console.log("response.status =", res.status, res.statusText);
-      console.log("response.headers =", [...res.headers.entries()]);
-      console.log("response.text =", text);
-      console.groupEnd();
 
       const p = safeParseJSON(text);
       if (!p.ok) throw new Error("JSON parse failed");
       const v = p.value;
       if (!v?.ok) throw new Error(String(v?.error || "GAS error"));
-      console.log("response", v);
-      console.log("records", v.records);
-      console.log("records.length", v.records?.length);
-      console.log("[Sheets] GET parsed JSON =", v);
-      const sampleList = (v.records || v.entries || v.sample || []).slice(0, 1);
       const contextBits = [
         v.spreadsheetId ? `spreadsheetId=${v.spreadsheetId}` : "",
         v.sheetName ? `sheetName=${v.sheetName}` : "",
         Number.isFinite(Number(v.lastRow)) ? `lastRow=${v.lastRow}` : "",
         Number.isFinite(Number(v.lastColumn)) ? `lastColumn=${v.lastColumn}` : "",
       ].filter(Boolean);
-      toast("ok", `GET結果サンプル: ${JSON.stringify(sampleList)}${contextBits.length ? ` / ${contextBits.join(" / ")}` : ""}`);
+      toast("ok", `GET結果${contextBits.length ? ` / ${contextBits.join(" / ")}` : ""}`);
 
       const arr = Array.isArray(v.records) ? v.records : (Array.isArray(v.entries) ? v.entries : []);
       sheetEntries = arr
@@ -2178,15 +2215,6 @@
         });
 
       const countMessage = `Sheets取得件数: ${sheetEntries.length}件`;
-      console.log("[Sheets] GET count =", sheetEntries.length);
-      console.log("[Sheets] GET endpoint =", endpoint);
-      console.log("[Sheets] GET sample =", sheetEntries.slice(0, 3));
-      console.log("[Sheets] GET context =", {
-        spreadsheetId: v.spreadsheetId,
-        sheetName: v.sheetName,
-        lastRow: v.lastRow,
-        lastColumn: v.lastColumn,
-      });
       if (!silent) toast("ok", countMessage);
       render();
       return {
@@ -2226,6 +2254,7 @@
     }
 
     const total_weight = sumWeights(weights);
+    setSaveButtonState("saving");
 
     /** @type {Entry} */
     const entry = {
@@ -2244,18 +2273,18 @@
     // まずCloudflare D1へ保存する
     try {
       setTransportMessage("fetch");
-      toast("warn", "Cloudflareへ保存中...");
+      toast("warn", "保存中...");
       const savedRecord = await createCloudRecord(entry);
-      toast("ok", "Cloudflare保存成功");
-      console.log("[Cloudflare] POST response =", savedRecord);
-      console.log("[Cloudflare] endpoint =", getCloudRecordUrl());
+      toast("ok", `保存しました ${formatDateShortMonthDay(savedRecord.date)} ${fmtWeight(savedRecord.total_weight)}kg`);
 
       const localBackup = entries.slice();
       upsertLocalRecord(savedRecord);
+      recentlySavedId = String(savedRecord.id || "");
       resetFormDefaults();
       dateEl.value = date;
       fieldEl.value = field;
-      userEl.value = user;
+      applyLockedUser();
+      if (!loadSettings().lockedUser) userEl.value = user;
       gradeEl.value = "";
       memoEl.value = "";
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
@@ -2268,14 +2297,18 @@
       ];
       saveLocal();
       render();
+      showSaveNotice(savedRecord);
+      setSaveButtonState("saved");
 
       if (getEndpoint()) {
         void postToSheets(buildPostPayload(savedRecord));
       }
       window.setTimeout(async () => {
-        const refreshResult = await fetchCloudRecords({ silent: false });
+        const refreshResult = await fetchCloudRecords({ silent: true });
         if (refreshResult?.ok) {
-      toast("ok", `D1再読込成功: ${refreshResult.count}件`);
+          recentlySavedId = String(savedRecord.id || "");
+          render();
+          setSaveButtonState("saved");
         } else {
           toast("warn", "送信しました。D1を確認してください");
         }
@@ -2285,8 +2318,9 @@
       // 失敗時はlocalStorageへ一時保存
       entries.push(entry);
       saveLocal();
-      toast("err", `Cloudflare保存失敗：${String(err)}（localStorageに退避）`);
-      console.error("[Cloudflare] save failed =", err);
+      toast("err", "保存に失敗しました。通信状況を確認してください");
+      showSaveNotice(entry, true);
+      setSaveButtonState("idle");
       resetFormDefaults();
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
       updateTotal();
@@ -2323,6 +2357,7 @@
     for (const o of eopts) {
       if (o.value === "担当者") o.textContent = otherLabel;
     }
+    applyLockedUser();
     updateSaveConfirm();
   }
 
@@ -2376,6 +2411,11 @@
       });
     });
     btnRenameOther.addEventListener("click", renameOtherUser);
+    lockUserEl.addEventListener("change", updateLockedUserFromUI);
+    userEl.addEventListener("change", () => {
+      if (lockUserEl.checked) updateLockedUserFromUI();
+      else updateSaveConfirm();
+    });
 
     monthEl.addEventListener("change", () => {
       monthEl.dataset.manual = "1";
@@ -2396,7 +2436,10 @@
     });
     form.addEventListener("input", updateSaveConfirm);
     form.addEventListener("change", updateSaveConfirm);
-    form.addEventListener("reset", () => requestAnimationFrame(updateSaveConfirm));
+    form.addEventListener("reset", () => requestAnimationFrame(() => {
+      applyLockedUser();
+      updateSaveConfirm();
+    }));
     $("#btnClearTests").addEventListener("click", () => void clearTestData());
 
     btnShowAll.addEventListener("click", () => setShowAllLogs(!showAllLogs));
@@ -2484,9 +2527,13 @@
       }
       ev.preventDefault();
       Promise.resolve(commitEdit())
-        .then(() => {
+        .then((saved) => {
           editingId = null;
           dlgEdit.close();
+          if (saved) {
+            recentlySavedId = String(saved.id || "");
+            showSaveNotice(saved);
+          }
           render();
           toast("ok", "更新しました");
         })

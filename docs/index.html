@@ -53,6 +53,11 @@
               <option value="河合">河合</option>
               <option value="担当者">担当者</option>
             </select>
+            <label class="checkLine">
+              <input id="lockUser" type="checkbox" />
+              <span>この入力者を固定</span>
+            </label>
+            <div id="lockUserStatus" class="hint"></div>
             <div class="mini">
               <button class="link" id="btnRenameOther" type="button">「担当者」の名称変更</button>
             </div>
@@ -125,6 +130,7 @@
           <button class="btn btn--secondary" type="reset">入力をリセット</button>
           <button class="btn btn--ghost" id="btnSettings" type="button">設定</button>
         </div>
+        <div id="saveNotice" class="saveNotice" hidden></div>
       </form>
     </section>
 
