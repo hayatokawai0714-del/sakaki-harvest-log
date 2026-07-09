@@ -2,9 +2,8 @@
 (() => {
   "use strict";
 
-  // Apps Script WebアプリURL（あとで差し替え）
-  // 例: const GAS_ENDPOINT = 'https://script.google.com/macros/s/XXXX/exec';
-  const GAS_ENDPOINT = "https://script.google.com/macros/s/AKfycbx2BZ_kbNmfCXn9NktB1_mdpAWxVI_xniTN8-W9AG-RVSrBwPp0tHWVYIDXz1QOcI_yLA/exec";
+  // Google Sheetsへのバックアップを明示的に使う場合のみ設定画面から入力する。
+  const GAS_ENDPOINT = "";
   const CLOUD_API_BASE = "/api/harvest-records";
   const CLOUD_SOURCE_LABEL = "Cloudflare D1";
   const DEMO_URL_PARAM = "demo";
@@ -2134,7 +2133,7 @@
     const importedTest = imported.filter((record) => !isAgrinoteRecord(record));
     const existingLocalAgrinote = entries.filter((record) => isAgrinoteRecord(record));
     const existingLocalTest = entries.filter((record) => !isAgrinoteRecord(record));
-    if (getEndpoint() && !Array.isArray(sheetEntries)) {
+    if (!Array.isArray(sheetEntries)) {
       await fetchCloudRecords({ silent: true });
     }
     const existingCloudAgrinote = Array.isArray(sheetEntries) ? sheetEntries.filter((record) => isAgrinoteRecord(record)) : [];
@@ -2162,9 +2161,8 @@
     let syncFailed = false;
     let syncErrorMessage = "";
     let syncedCount = 0;
-    const canSyncCloud = Boolean(getEndpoint());
     let syncedAgrinote = [];
-    if (canSyncCloud && importedAgrinoteUnique.length) {
+    if (importedAgrinoteUnique.length) {
       try {
         const firstRecord = importedAgrinoteUnique[0];
         setImportStatus(`D1保存テスト中：${firstRecord.date} / ${formatFieldName(firstRecord.field)} / ${formatWeight(firstRecord.total_weight)}kg`);
