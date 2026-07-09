@@ -828,7 +828,7 @@
 
   function getEndpoint() {
     const s = loadSettings();
-    return (s.endpoint || GAS_ENDPOINT || "").trim();
+    return String(s.endpoint || "").trim();
   }
 
   function applyLockedUser() {
@@ -2271,7 +2271,7 @@
   async function postToSheets(payload) {
     const endpoint = getEndpoint();
     if (!endpoint) {
-      return { ok: false, error: "GAS_ENDPOINT 未設定" };
+      return { ok: false, error: "Apps Script URL未設定" };
     }
 
     const useFormTransport = detectSafariIOS() || true;
