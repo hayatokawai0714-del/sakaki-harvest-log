@@ -11,6 +11,8 @@
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
+  const DEFAULT_GRADES = ["40センチ", "45センチ", "大枝"];
+  const USER_OPTIONS = ["河合", "長谷川"];
 
   /** @typedef {{id:string, date:string, field:string, grade:string, weights:number[], total_weight:number, user:string, memo:string, created_at:string, updated_at:string}} Entry */
 
@@ -22,12 +24,15 @@
   const demoBannerEl = /** @type {HTMLElement | null} */ ($("#demoBanner"));
   const logSourceEl = $("#logSource");
   const statusEl = $("#status");
-  const searchPanel = $("#searchPanel");
   const managePanel = $("#managePanel");
-  const btnSearchToggle = $("#btnSearchToggle");
   const btnManageToggle = $("#btnManageToggle");
   const btnShowAll = $("#btnShowAll");
   const manageSection = $("#manageSection");
+  const newGradeNameEl = /** @type {HTMLInputElement} */ ($("#newGradeName"));
+  const btnAddGrade = $("#btnAddGrade");
+  const gradeSettingsListEl = $("#gradeSettingsList");
+  const inputMiniMonthWeightEl = $("#inputMiniMonthWeight");
+  const inputMiniMonthCompareEl = $("#inputMiniMonthCompare");
 
   const form = /** @type {HTMLFormElement} */ ($("#form"));
   const dateEl = /** @type {HTMLInputElement} */ ($("#date"));
@@ -38,14 +43,12 @@
   const lockUserStatusEl = $("#lockUserStatus");
   const saveNoticeEl = $("#saveNotice");
   const memoEl = /** @type {HTMLTextAreaElement} */ ($("#memo"));
+  const btnMemoToggle = $("#btnMemoToggle");
+  const memoBodyEl = $("#memoBody");
   const weightsWrap = $("#weights");
   const formWeightListEl = $("#formWeightList");
   const totalWeightEl = $("#totalWeight");
   const btnAddWeight = $("#btnAddWeight");
-  const btnRenameOther = $("#btnRenameOther");
-
-  const monthEl = /** @type {HTMLInputElement} */ ($("#month"));
-  const qEl = /** @type {HTMLInputElement} */ ($("#q"));
 
   const btnClear = $("#btnClear");
   const btnFetch = $("#btnFetch");
@@ -56,12 +59,15 @@
   const ocrImageLibraryEl = /** @type {HTMLInputElement} */ ($("#ocrImageLibrary"));
   const ocrPreviewEl = /** @type {HTMLImageElement} */ ($("#ocrPreview"));
   const ocrStatusEl = $("#ocrStatus");
+  const ocrPreviewWrapEl = ocrPreviewEl.closest(".ocrPanel__preview");
+  const ocrResultsEl = $("#ocrCandidatesSummary")?.closest(".ocrPanel__results");
   const ocrCandidatesSummaryEl = $("#ocrCandidatesSummary");
   const ocrCandidatesEl = $("#ocrCandidates");
   const btnToggleOcrDetails = $("#btnToggleOcrDetails");
   const calcManualWeightEl = /** @type {HTMLInputElement} */ ($("#calcManualWeight"));
   const btnCalcManualAdd = $("#btnCalcManualAdd");
   const calcTotalWeightEl = $("#calcTotalWeight");
+  const calcTotalEl = calcTotalWeightEl?.closest(".calcTotal");
   const saveConfirmEl = $("#saveConfirm");
   const confirmDateEl = $("#confirmDate");
   const confirmFieldEl = $("#confirmField");
@@ -118,6 +124,8 @@
   let openSummaryYear = "";
   let openSummaryMonth = "";
   let openSummaryField = "";
+  let monthlyTrendOpen = false;
+  let memoOpen = false;
   const demoMode = new URLSearchParams(location.search).get(DEMO_URL_PARAM) === "1";
 
   function demoRecords() {
@@ -215,11 +223,24 @@
 
   function setOcrStatus(message) {
     ocrStatusEl.textContent = message;
+    updateOcrPanelVisibility();
   }
 
   function setOcrPreview(src) {
     ocrPreviewEl.src = src || "";
     ocrPreviewEl.style.display = src ? "block" : "none";
+    updateOcrPanelVisibility();
+  }
+
+  function updateOcrPanelVisibility() {
+    const statusText = String(ocrStatusEl.textContent || "").trim();
+    const hasStatus = Boolean(statusText);
+    const hasImage = Boolean(ocrImageDataUrl);
+    const hasWeights = ocrCandidateDetails.some((item) => item?.corrected && validateWeightRange(item.corrected));
+    ocrStatusEl.toggleAttribute("hidden", !hasStatus);
+    ocrPreviewWrapEl?.toggleAttribute("hidden", !hasImage);
+    ocrResultsEl?.toggleAttribute("hidden", !hasImage && !hasWeights);
+    calcTotalEl?.toggleAttribute("hidden", !hasImage && !hasWeights);
   }
 
   function setOcrDetailsOpen(open) {
@@ -238,7 +259,7 @@
     if (!file) {
       ocrImageDataUrl = "";
       setOcrPreview("");
-      setOcrStatus("未読み取り");
+      setOcrStatus("");
       renderOcrCandidates([]);
       setOcrDetailsOpen(false);
       return;
@@ -485,7 +506,7 @@
     if (ocrCandidatesSummaryEl) {
       ocrCandidatesSummaryEl.textContent = items.length
         ? `読み取り結果：${items.length}件 / ${items.map((value) => `${fmtWeightOne(Number(value) || 0)}kg`).slice(0, 4).join(" / ")}${items.length > 4 ? " / ..." : ""}`
-        : "未読み取り";
+        : "";
     }
     ocrCandidatesEl.innerHTML = "";
     ocrCandidatesEl.toggleAttribute("hidden", !ocrDetailsOpen);
@@ -557,9 +578,10 @@
       const suffix = ocrCandidateValues.length > 4 ? " / ..." : "";
       ocrCandidatesSummaryEl.textContent = ocrCandidateValues.length
         ? `読み取り結果：${ocrCandidateValues.length}件 / ${preview.join(" / ")}${suffix}`
-        : "読み取り結果：未読み取り";
+        : "";
     }
     syncCalcToFormWeights();
+    updateOcrPanelVisibility();
   }
 
   function syncCalcToFormWeights() {
@@ -667,18 +689,73 @@
 
   function loadSettings() {
     const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { endpoint: "", otherUserLabel: "担当者", lockedUser: "" };
+    if (!raw) return { endpoint: "", lockedUser: "", grades: [] };
     const p = safeParseJSON(raw);
-    if (!p.ok || !p.value || typeof p.value !== "object") return { endpoint: "", otherUserLabel: "担当者", lockedUser: "" };
+    if (!p.ok || !p.value || typeof p.value !== "object") return { endpoint: "", lockedUser: "", grades: [] };
     return {
       endpoint: String(p.value.endpoint || ""),
-      otherUserLabel: String(p.value.otherUserLabel || "担当者"),
       lockedUser: String(p.value.lockedUser || ""),
+      grades: Array.isArray(p.value.grades)
+        ? [...new Set(p.value.grades.map((item) => String(item || "").trim()).filter(Boolean))]
+        : [],
     };
   }
 
   function saveSettings(s) {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+      endpoint: String(s.endpoint || ""),
+      lockedUser: USER_OPTIONS.includes(String(s.lockedUser || "")) ? String(s.lockedUser || "") : "",
+      grades: Array.isArray(s.grades) ? s.grades : [],
+    }));
+  }
+
+  function renderUserOptions(select, currentValue = "", allowUnknown = false) {
+    const current = String(currentValue || "");
+    const values = allowUnknown && current && !USER_OPTIONS.includes(current) ? [...USER_OPTIONS, current] : USER_OPTIONS;
+    select.innerHTML = values.map((value) => `<option value="${escapeAttr(value)}">${escapeHtml(value)}</option>`).join("");
+    if (current && values.includes(current)) select.value = current;
+  }
+
+  function getGradeOptions(extra = []) {
+    return [...new Set([...DEFAULT_GRADES, ...loadSettings().grades, ...extra].map((item) => String(item || "").trim()).filter(Boolean))];
+  }
+
+  function renderSelectOptions(select, values, currentValue = "") {
+    const current = String(currentValue || select.value || "");
+    select.innerHTML = values.map((value) => `<option value="${escapeAttr(value)}">${escapeHtml(value)}</option>`).join("");
+    if (current && !values.includes(current)) {
+      select.insertAdjacentHTML("beforeend", `<option value="${escapeAttr(current)}">${escapeHtml(current)}</option>`);
+    }
+    if (current) select.value = current;
+  }
+
+  function renderGradeSettings() {
+    const grades = getGradeOptions();
+    renderSelectOptions(gradeEl, grades);
+    renderSelectOptions(eGrade, grades);
+    gradeSettingsListEl.innerHTML = grades.map((grade) => `<span class="gradeSettingsList__item">${escapeHtml(grade)}</span>`).join("");
+  }
+
+  function addCustomGrade() {
+    const nextGrade = String(newGradeNameEl.value || "").trim();
+    if (!nextGrade) {
+      toast("warn", "規格名を入力してください");
+      return;
+    }
+    const settings = loadSettings();
+    const currentGrades = getGradeOptions();
+    if (currentGrades.includes(nextGrade)) {
+      toast("warn", "同じ規格は追加済みです");
+      newGradeNameEl.value = "";
+      return;
+    }
+    settings.grades = [...settings.grades, nextGrade];
+    saveSettings(settings);
+    newGradeNameEl.value = "";
+    renderGradeSettings();
+    gradeEl.value = nextGrade;
+    toast("ok", "規格を追加しました");
+    updateSaveConfirm();
   }
 
   function getEndpoint() {
@@ -688,17 +765,31 @@
 
   function applyLockedUser() {
     const settings = loadSettings();
-    const lockedUser = settings.lockedUser || "";
-    if (lockedUser && [...userEl.options].some((option) => option.value === lockedUser)) {
+    const lockedUser = USER_OPTIONS.includes(settings.lockedUser) ? settings.lockedUser : "";
+    if (settings.lockedUser && !lockedUser) {
+      settings.lockedUser = "";
+      saveSettings(settings);
+    }
+    if (lockedUser) {
       userEl.value = lockedUser;
+    } else {
+      userEl.value = "";
     }
     lockUserEl.checked = Boolean(lockedUser);
-    lockUserStatusEl.textContent = lockedUser ? `入力者：${lockedUser}（固定中）` : "";
+    lockUserStatusEl.textContent = "";
     updateSaveConfirm();
   }
 
   function updateLockedUserFromUI() {
     const settings = loadSettings();
+    if (lockUserEl.checked && !USER_OPTIONS.includes(userEl.value)) {
+      lockUserEl.checked = false;
+      settings.lockedUser = "";
+      saveSettings(settings);
+      applyLockedUser();
+      toast("warn", "入力者を選択してください");
+      return;
+    }
     settings.lockedUser = lockUserEl.checked ? userEl.value : "";
     saveSettings(settings);
     applyLockedUser();
@@ -1085,7 +1176,22 @@
     confirmGradeEl.textContent = gradeEl.value || "未入力";
     confirmUserEl.textContent = userEl.value || "未入力";
     confirmTotalWeightEl.textContent = total.toFixed(2);
-    saveConfirmEl.classList.toggle("is-incomplete", !dateEl.value || !fieldEl.value || !gradeEl.value || !userEl.value || total <= 0);
+    saveConfirmEl.classList.toggle("is-incomplete", !dateEl.value || !fieldEl.value || !gradeEl.value || !USER_OPTIONS.includes(userEl.value) || total <= 0);
+  }
+
+  function setMemoOpen(open, focus = false) {
+    memoOpen = Boolean(open);
+    memoBodyEl.hidden = !memoOpen;
+    btnMemoToggle.textContent = memoOpen ? "メモを閉じる" : "メモを追加";
+    btnMemoToggle.setAttribute("aria-expanded", String(memoOpen));
+    if (memoOpen && focus) {
+      memoEl.focus();
+      window.setTimeout(() => memoEl.focus(), 50);
+    }
+  }
+
+  function syncMemoOpenFromValue() {
+    setMemoOpen(Boolean(String(memoEl.value || "").trim()), false);
   }
 
   function updateETotal() {
@@ -1109,20 +1215,7 @@
   }
 
   function filtered(list) {
-    const month = monthEl.value.trim();
-    const q = qEl.value.trim().toLowerCase();
-
     return list
-      .filter((e) => (month ? e.date.startsWith(month) : true))
-      .filter((e) => {
-        if (!q) return true;
-        return (
-          String(e.field).toLowerCase().includes(q) ||
-          String(e.grade).toLowerCase().includes(q) ||
-          String(e.user).toLowerCase().includes(q) ||
-          String(e.memo).toLowerCase().includes(q)
-        );
-      })
       .slice()
       .sort((a, b) => {
         if (a.date !== b.date) return a.date < b.date ? 1 : -1;
@@ -1193,6 +1286,26 @@
       <span class="summaryMetric__delta ${percent >= 0 ? "is-plus" : "is-minus"}">前年比 ${sign}${percent.toFixed(1)}%</span>
       ${withDiff ? `<span class="summaryMetric__muted">前年差 ${diffSign}${fmtWeightOne(diff)}kg</span>` : ""}
     `;
+  }
+
+  function formatMiniComparisonText(current, previous) {
+    if (!Number.isFinite(previous) || previous <= 0) return "前年なし";
+    const percent = Math.round(((current - previous) / previous) * 1000) / 10;
+    const sign = percent >= 0 ? "+" : "";
+    return `前年比 ${sign}${percent.toFixed(1)}%`;
+  }
+
+  function renderInputMiniSummary(records) {
+    const now = todayStr();
+    const thisMonth = now.slice(0, 7);
+    const thisYear = now.slice(0, 4);
+    const previousMonth = `${Number(thisYear) - 1}-${thisMonth.slice(5, 7)}`;
+    const monthSummary = getRecordSummary(filterRecordsByMonth(records, thisMonth));
+    const previousMonthSummary = getRecordSummary(filterRecordsByMonth(records, previousMonth));
+    inputMiniMonthWeightEl.textContent = `${fmtWeightOne(monthSummary.total)}kg`;
+    inputMiniMonthCompareEl.textContent = formatMiniComparisonText(monthSummary.total, previousMonthSummary.total);
+    inputMiniMonthCompareEl.classList.toggle("is-minus", previousMonthSummary.total > 0 && monthSummary.total < previousMonthSummary.total);
+    inputMiniMonthCompareEl.classList.toggle("is-plus", previousMonthSummary.total > 0 && monthSummary.total >= previousMonthSummary.total);
   }
 
   function buildMonthlyYearTotals(records, year) {
@@ -1353,7 +1466,7 @@
   }
 
   function renderSummaryMonthLogs(records) {
-    if (!Array.isArray(records) || !records.length) return `<div class="summaryEmpty">集計データはありません</div>`;
+    if (!Array.isArray(records) || !records.length) return `<div class="summaryEmpty">この月のログはありません</div>`;
     return records
       .slice()
       .sort((a, b) => {
@@ -1361,15 +1474,15 @@
         return String(b.updated_at || b.created_at || "").localeCompare(String(a.updated_at || a.created_at || ""), "ja");
       })
       .map((item) => {
-        const memoText = String(item.memo || "").trim();
+        const totalWeight = getRecordTotal(item);
         return `<div class="summaryMonthLog">
           <div class="summaryMonthLog__main">
             <span class="summaryMonthLog__date">${escapeHtml(formatDateMonthDay(item.date))}</span>
             <span class="item__pill item__pill--field ${getFieldBadgeClass(item.field)}">${escapeHtml(formatFieldName(item.field))}</span>
             <span class="item__pill item__pill--grade ${getGradeBadgeClass(item.grade)}"><span class="badgeDot"></span>${escapeHtml(formatGradeBadge(item.grade))}</span>
-            <span class="summaryMonthLog__weight">${escapeHtml(fmtWeightOne(Number(item.total_weight) || 0))}kg</span>
+            <span class="summaryMonthLog__weight">${escapeHtml(fmtWeightOne(totalWeight))}kg</span>
+            <span class="summaryMonthLog__user">入力者: ${escapeHtml(String(item.user || "未設定"))}</span>
           </div>
-          ${memoText ? `<div class="summaryMonthLog__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
         </div>`;
       })
       .join("");
@@ -1462,26 +1575,10 @@
     render();
   }
 
-  function setSearchPanelOpen(open) {
-    searchPanel.hidden = !open;
-    btnSearchToggle.textContent = open ? "検索を閉じる" : "ログを探す";
-    btnSearchToggle.setAttribute("aria-expanded", String(open));
-    if (open) {
-      managePanel.hidden = true;
-      btnManageToggle.textContent = "管理";
-      btnManageToggle.setAttribute("aria-expanded", "false");
-    }
-  }
-
   function setManagePanelOpen(open) {
     managePanel.hidden = !open;
-    btnManageToggle.textContent = open ? "管理を閉じる" : "管理";
+    btnManageToggle.textContent = open ? "管理を閉じる" : "管理を開く";
     btnManageToggle.setAttribute("aria-expanded", String(open));
-    if (open) {
-      searchPanel.hidden = true;
-      btnSearchToggle.textContent = "ログを探す";
-      btnSearchToggle.setAttribute("aria-expanded", "false");
-    }
   }
 
   function getDisplayRecords() {
@@ -1497,9 +1594,8 @@
 
   function render() {
     const base = getDisplayRecords();
-    const selectedMonth = monthEl.value.trim();
     const availableYears = [...new Set(base.map((record) => getRecordYear(record)).filter(Boolean))].sort((a, b) => Number(b) - Number(a));
-    const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || selectedMonth.slice(0, 4));
+    const selectedYear = selectedSummaryYear && availableYears.includes(selectedSummaryYear) ? selectedSummaryYear : (availableYears[0] || todayStr().slice(0, 4));
     selectedSummaryYear = selectedYear;
     const yearRecords = filterRecordsByYear(base, selectedYear);
     const previousYearRecords = filterRecordsByYear(base, String(Number(selectedYear) - 1));
@@ -1528,13 +1624,14 @@
     const yearBarMax = Math.max(0, ...visibleYearMonths.map((item) => Number(item.total) || 0));
     const yearCardMax = Math.max(0, ...allYearGroups.map((item) => Number(item.total) || 0));
     const statusSummary = summarizeRecordsForStatus(base);
+    renderInputMiniSummary(base);
     const selectedMonthForYear = `${selectedYear || todayStr().slice(0, 4)}-${todayStr().slice(5, 7)}`;
     const previousSelectedMonthKey = `${Number(String(selectedMonthForYear).slice(0, 4)) - 1}-${String(selectedMonthForYear).slice(5, 7)}`;
     const selectedMonthSummary = getRecordSummary(filterRecordsByMonth(base, selectedMonthForYear));
     const previousSelectedMonthSummary = getRecordSummary(filterRecordsByMonth(base, previousSelectedMonthKey));
     const yearSwitchHtml = availableYears.length
       ? `<div class="summaryYearPicker">
-          <div class="summaryYearPicker__label">集計年</div>
+          <div class="summaryYearPicker__label">集計年：分析カードの表示年</div>
           <div class="summaryYearPicker__buttons">
             ${availableYears.map((year) => `<button class="summaryYearPicker__btn ${year === selectedYear ? "is-active" : ""}" type="button" data-summary-select-year="${escapeAttr(year)}" aria-pressed="${year === selectedYear ? "true" : "false"}">${escapeHtml(year)}年</button>`).join("")}
           </div>
@@ -1561,6 +1658,7 @@
         </div>`;
       }).join("")
       : `<div class="summaryEmpty">この年の月別データはありません</div>`;
+    const monthlyTrendToggleText = monthlyTrendOpen ? "▼ 月別収穫量を閉じる" : "〉 月別収穫量を見る";
     const fieldComparisonHtml = fieldGroups.length
       ? fieldGroups.map((item) => {
         const isOpen = openSummaryField === item.key;
@@ -1579,12 +1677,12 @@
         </div>`;
       }).join("")
       : `<div class="summaryEmpty">この年の圃場別データはありません</div>`;
-    const selectedYearGroup = allYearGroups.find((item) => item.key === selectedYear);
-    const summaryYearHtml = selectedYearGroup
-      ? [selectedYearGroup].map((item) => {
+    const summaryYearHtml = allYearGroups.length
+      ? allYearGroups.map((item) => {
           const months = item.months || [];
           const isYearOpen = openSummaryYear === item.key;
-          const yearArrow = isYearOpen ? "⌃" : "〉";
+          const yearArrow = isYearOpen ? "▼" : "〉";
+          const monthBarMax = Math.max(0, ...months.map((month) => Number(month.total) || 0));
           return `
             <div class="summaryYearBlock ${isYearOpen ? "is-open" : ""}">
               <button class="summaryLine summaryLine--bar summaryLine--year" type="button" data-summary-year="${escapeAttr(item.key)}" aria-expanded="${isYearOpen ? "true" : "false"}">
@@ -1597,14 +1695,14 @@
                 <div class="summaryMonthList">
                   ${months.map((monthItem) => {
                     const monthOpen = openSummaryYear === item.key && openSummaryMonth === monthItem.key;
-                    const monthArrow = monthOpen ? "⌃" : "〉";
+                    const monthArrow = monthOpen ? "▼" : "〉";
                     const monthRecordsForOpen = monthOpen ? filterRecordsByMonth(filterRecordsByYear(base, item.key), monthItem.key) : [];
                     return `
                       <div class="summaryMonthBlock ${monthOpen ? "is-open" : ""}">
                         <button class="summaryLine summaryLine--bar summaryLine--month" type="button" data-summary-year="${escapeAttr(item.key)}" data-summary-month="${escapeAttr(monthItem.key)}" aria-expanded="${monthOpen ? "true" : "false"}">
                           <span class="summaryLabel">${escapeHtml(formatMonthLabel(monthItem.key))}</span>
                           <span class="summaryLine__count"><strong>${escapeHtml(formatWeight(monthItem.total))}kg</strong>　収穫${escapeHtml(monthItem.count)}回</span>
-                          <span class="summaryBar"><span class="summaryBar__fill" style="width:${yearBarMax ? Math.max(12, (monthItem.total / yearBarMax) * 100) : 0}%"></span></span>
+                          <span class="summaryBar"><span class="summaryBar__fill" style="width:${monthBarMax ? Math.max(12, (monthItem.total / monthBarMax) * 100) : 0}%"></span></span>
                           <span class="summaryLine__arrow">${monthArrow}</span>
                         </button>
                         ${monthOpen ? `<div class="summaryMonthLogs">${renderSummaryMonthLogs(monthRecordsForOpen)}</div>` : ""}
@@ -1634,9 +1732,9 @@
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">月別収穫量</div>
-          <div class="summaryCard__list">
-            ${monthlyTrendHtml}
-          </div>
+          <div class="summaryCard__meta">対象年の月別推移を確認できます</div>
+          <button class="summaryToggle summaryToggle--wide" type="button" data-summary-monthly-toggle aria-expanded="${monthlyTrendOpen ? "true" : "false"}">${monthlyTrendToggleText}</button>
+          ${monthlyTrendOpen ? `<div class="summaryCard__list summaryCard__list--monthly">${monthlyTrendHtml}</div>` : ""}
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">圃場別収穫量</div>
@@ -1646,7 +1744,7 @@
         </div>
         <div class="summaryCard summaryCard--list">
           <div class="summaryCard__label">年間詳細</div>
-          <div class="summaryCard__meta">月別の収穫日を見る</div>
+          <div class="summaryCard__meta">年ごとの月別ログを見る</div>
           <div class="summaryCard__list">
             ${summaryYearHtml}
           </div>
@@ -1673,23 +1771,23 @@
       const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
       const dateText = escapeHtml(formatDateShortMonthDay(e.date) || formatDateJapanese(e.date));
       item.innerHTML = `
-        <div class="item__top">
+        <div class="item__layout">
           <div class="item__body">
-            <div class="item__titleRow">
-              <span class="item__title">${dateText}</span>
-              <span class="item__pill item__pill--field ${getFieldBadgeClass(e.field)}">${escapeHtml(fieldName)}</span>
-              <span class="item__pill item__pill--grade ${getGradeBadgeClass(e.grade)}"><span class="badgeDot"></span>${escapeHtml(formatGradeBadge(e.grade))}</span>
-              <span class="item__total">${escapeHtml(totalWeight)}kg</span>
+            <div class="item__head">
+              <span class="item__date">${dateText}</span>
+              <span class="item__field item__pill item__pill--field ${getFieldBadgeClass(e.field)}">${escapeHtml(fieldName)}</span>
             </div>
-            <div class="item__metaRow">
-              <span>入力者: ${escapeHtml(e.user || "-")}</span>
+            <div class="item__weight">${escapeHtml(totalWeight)}kg</div>
+            <div class="item__sub">
+              <span class="item__tag item__tag--grade">${escapeHtml(formatGradeBadge(e.grade))}</span>
+              <span class="item__tag item__tag--user">${escapeHtml(e.user || "-")}</span>
             </div>
-            ${memoText ? `<div class="item__memo">メモ：${escapeHtml(memoText)}</div>` : ""}
+            ${memoText ? `<div class="item__memo">📝 ${escapeHtml(memoText)}</div>` : ""}
           </div>
-        </div>
-        <div class="item__actions">
+          <div class="item__actions">
           <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>編集</button>
           <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>削除</button>
+        </div>
         </div>
       `;
       frag.appendChild(item);
@@ -1779,7 +1877,9 @@
 
     eDate.value = e.date;
     eField.value = e.field;
+    renderSelectOptions(eGrade, getGradeOptions([e.grade]), e.grade);
     eGrade.value = e.grade;
+    renderUserOptions(eUser, e.user, true);
     eUser.value = e.user;
     eMemo.value = e.memo;
 
@@ -1807,6 +1907,10 @@
     const total_weight = sumWeights(weights);
 
     if (!date) return;
+    if (!user) {
+      alert("入力者を選択してください");
+      return;
+    }
     if (weights.length === 0) {
       alert("重量を1つ以上入力してください");
       return;
@@ -1898,7 +2002,7 @@
       e.updated_at,
     ].map(escapeCsv).join(","));
     const csv = [header, ...lines].join("\n") + "\n";
-    const name = monthEl.value ? `sakaki-harvest-${monthEl.value}.csv` : "sakaki-harvest.csv";
+    const name = "sakaki-harvest.csv";
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -2248,6 +2352,12 @@
     const weights = getWeightsFrom(weightsWrap);
 
     if (!date) return;
+    if (!USER_OPTIONS.includes(user)) {
+      toast("warn", "入力者を選択してください");
+      userEl.focus();
+      updateSaveConfirm();
+      return;
+    }
     if (weights.length === 0) {
       toast("warn", "重量を1つ以上入力してください");
       return;
@@ -2284,9 +2394,9 @@
       dateEl.value = date;
       fieldEl.value = field;
       applyLockedUser();
-      if (!loadSettings().lockedUser) userEl.value = user;
       gradeEl.value = "";
       memoEl.value = "";
+      setMemoOpen(false);
       setWeightsTo(weightsWrap, [""], updateTotal, updateTotal);
       updateTotal();
       requestAnimationFrame(() => focusLastWeightInput(weightsWrap));
@@ -2342,36 +2452,14 @@
     if (ocrImageLibraryEl) ocrImageLibraryEl.value = "";
     if (calcManualWeightEl) calcManualWeightEl.value = "";
     setOcrPreview("");
-    setOcrStatus("未読み取り");
+    setOcrStatus("");
     setOcrDetailsOpen(false);
     renderOcrCandidates([]);
 
-    // other user label
-    const s = loadSettings();
-    const otherLabel = s.otherUserLabel || "担当者";
-    const opts = [...userEl.options];
-    for (const o of opts) {
-      if (o.value === "担当者") o.textContent = otherLabel;
-    }
-    const eopts = [...eUser.options];
-    for (const o of eopts) {
-      if (o.value === "担当者") o.textContent = otherLabel;
-    }
+    renderUserOptions(eUser);
     applyLockedUser();
+    syncMemoOpenFromValue();
     updateSaveConfirm();
-  }
-
-  function renameOtherUser() {
-    const s = loadSettings();
-    const next = prompt("『担当者』の表示名を変更", s.otherUserLabel || "担当者");
-    if (next == null) return;
-    const label = String(next).trim();
-    if (!label) return;
-    s.otherUserLabel = label;
-    saveSettings(s);
-    resetFormDefaults();
-    render();
-    toast("ok", "表示名を更新しました");
   }
 
   function openSettings() {
@@ -2392,13 +2480,10 @@
     entries = demoMode ? demoRecordList() : loadLocal();
     sheetEntries = null;
 
-    monthEl.value = "";
-    monthEl.dataset.manual = "";
+    renderGradeSettings();
     setOcrDetailsOpen(false);
     if (demoMode) {
       const demoDate = entries[0]?.date || todayStr();
-      monthEl.value = "";
-      monthEl.dataset.manual = "";
       dateEl.value = demoDate;
     }
 
@@ -2410,23 +2495,24 @@
         calcManualWeightEl.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
-    btnRenameOther.addEventListener("click", renameOtherUser);
     lockUserEl.addEventListener("change", updateLockedUserFromUI);
     userEl.addEventListener("change", () => {
       if (lockUserEl.checked) updateLockedUserFromUI();
       else updateSaveConfirm();
     });
 
-    monthEl.addEventListener("change", () => {
-      monthEl.dataset.manual = "1";
-      render();
-    });
-    qEl.addEventListener("input", render);
-
     btnClear.addEventListener("click", clearAllLocal);
     btnFetch.addEventListener("click", () => fetchCloudRecords({ silent: false }));
     btnExportCsv.addEventListener("click", exportCsv);
     btnExportJson.addEventListener("click", exportJson);
+    btnAddGrade.addEventListener("click", addCustomGrade);
+    newGradeNameEl.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        addCustomGrade();
+      }
+    });
+    btnMemoToggle.addEventListener("click", () => setMemoOpen(!memoOpen, !memoOpen));
     btnCalcManualAdd.addEventListener("click", addManualCalcWeight);
     calcManualWeightEl.addEventListener("keydown", (ev) => {
       if (ev.key === "Enter") {
@@ -2438,6 +2524,7 @@
     form.addEventListener("change", updateSaveConfirm);
     form.addEventListener("reset", () => requestAnimationFrame(() => {
       applyLockedUser();
+      syncMemoOpenFromValue();
       updateSaveConfirm();
     }));
     $("#btnClearTests").addEventListener("click", () => void clearTestData());
@@ -2450,6 +2537,7 @@
     summaryEl.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
       const selectYearBtn = target?.closest("[data-summary-select-year]");
+      const monthlyToggleBtn = target?.closest("[data-summary-monthly-toggle]");
       const fieldBtn = target?.closest("[data-summary-field]");
       const yearBtn = target?.closest("[data-summary-year]");
       const monthBtn = target?.closest("[data-summary-month]");
@@ -2461,8 +2549,15 @@
           openSummaryYear = "";
           openSummaryMonth = "";
           openSummaryField = "";
+          monthlyTrendOpen = false;
           render();
         }
+        return;
+      }
+      if (monthlyToggleBtn && monthlyToggleBtn instanceof HTMLElement) {
+        ev.preventDefault();
+        monthlyTrendOpen = !monthlyTrendOpen;
+        render();
         return;
       }
       if (fieldBtn && fieldBtn instanceof HTMLElement) {
@@ -2474,34 +2569,42 @@
         }
         return;
       }
-      if (yearBtn && yearBtn instanceof HTMLElement) {
-        ev.preventDefault();
-        const nextYear = String(yearBtn.getAttribute("data-summary-year") || "").slice(0, 4);
-        if (nextYear) {
-          openSummaryYear = openSummaryYear === nextYear ? "" : nextYear;
-          if (openSummaryYear !== nextYear) openSummaryMonth = "";
-          if (selectedSummaryYear !== nextYear) openSummaryField = "";
-          selectedSummaryYear = nextYear;
-          render();
-        }
-        return;
-      }
       if (monthBtn && monthBtn instanceof HTMLElement) {
         ev.preventDefault();
         const nextYear = String(monthBtn.getAttribute("data-summary-year") || "").slice(0, 4);
         const nextMonth = String(monthBtn.getAttribute("data-summary-month") || "").slice(0, 7);
         if (nextYear && nextMonth) {
           if (openSummaryYear !== nextYear) openSummaryYear = nextYear;
-          openSummaryMonth = openSummaryMonth === nextMonth && openSummaryYear === nextYear ? "" : nextMonth;
-          if (selectedSummaryYear !== nextYear) openSummaryField = "";
-          selectedSummaryYear = nextYear;
+          openSummaryMonth = openSummaryMonth === nextMonth ? "" : nextMonth;
           render();
         }
+        return;
+      }
+      if (yearBtn && yearBtn instanceof HTMLElement) {
+        ev.preventDefault();
+        const nextYear = String(yearBtn.getAttribute("data-summary-year") || "").slice(0, 4);
+        if (nextYear) {
+          const isClosing = openSummaryYear === nextYear;
+          openSummaryYear = isClosing ? "" : nextYear;
+          openSummaryMonth = "";
+          render();
+        }
+        return;
       }
     });
 
-    ocrImageEl.addEventListener("change", () => handleOcrImageFile(ocrImageEl.files?.[0] || null));
-    ocrImageLibraryEl.addEventListener("change", () => handleOcrImageFile(ocrImageLibraryEl.files?.[0] || null));
+    ocrImageEl.addEventListener("change", () => {
+      const file = ocrImageEl.files?.[0] || null;
+      if (file) setOcrStatus("画像を読み込み中...");
+      ocrImageEl.value = "";
+      handleOcrImageFile(file);
+    });
+    ocrImageLibraryEl.addEventListener("change", () => {
+      const file = ocrImageLibraryEl.files?.[0] || null;
+      if (file) setOcrStatus("画像を読み込み中...");
+      ocrImageLibraryEl.value = "";
+      handleOcrImageFile(file);
+    });
 
     fileImport.addEventListener("change", async () => {
       const file = fileImport.files?.[0];
@@ -2546,12 +2649,7 @@
     btnSettings.addEventListener("click", openSettings);
     document.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
-      const searchBtn = target?.closest("#btnSearchToggle");
       const manageBtn = target?.closest("#btnManageToggle");
-      if (searchBtn) {
-        ev.preventDefault();
-        setSearchPanelOpen(searchPanel.hidden);
-      }
       if (manageBtn) {
         ev.preventDefault();
         setManagePanelOpen(managePanel.hidden);
@@ -2570,7 +2668,6 @@
     if (demoMode) {
       dateEl.value = entries[0]?.date || todayStr();
     }
-    setSearchPanelOpen(false);
     setManagePanelOpen(false);
     if (demoMode) {
       render();

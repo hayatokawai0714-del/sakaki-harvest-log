@@ -3,42 +3,59 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#1f5b3a" />
   <title>榊収穫管理</title>
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+  <link rel="manifest" href="site.webmanifest" />
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <main class="wrap">
     <section class="card">
-      <div class="card__hd">
-        <h2>収穫記録</h2>
-      </div>
-
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
       <div id="demoBanner" class="demoBanner" hidden></div>
 
       <form id="form" class="form" autocomplete="off">
-        <div class="row">
-          <div class="field">
-            <label for="date">日付</label>
-            <input id="date" name="date" type="date" required />
+        <img src="assets/hinode-logo.png" alt="日の出農産" class="app-logo" />
+
+        <section class="inputMiniSummary" aria-label="今月の収穫量">
+          <div class="inputMiniSummary__main">
+            <span>今月の収穫量</span>
+            <strong id="inputMiniMonthWeight">0.0kg</strong>
+            <small id="inputMiniMonthCompare">前年なし</small>
           </div>
+        </section>
+
+        <div class="compactMeta">
+          <label class="dateCompact" for="date">
+            <input id="date" name="date" type="date" required />
+          </label>
+          <label class="userCompact" for="user">
+            <select id="user" name="user" class="choiceSelect" required>
+              <option value="">入力者を選択</option>
+              <option value="河合">河合</option>
+              <option value="長谷川">長谷川</option>
+            </select>
+          </label>
+          <div id="lockUserStatus" class="hint" hidden></div>
+        </div>
+
+        <div class="inputMainGrid">
           <div class="field">
             <label for="field">圃場</label>
             <select id="field" name="field" class="choiceSelect" required>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3上">3上</option>
-              <option value="3下">3下</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
+              <option value="1">1工区</option>
+              <option value="2">2工区</option>
+              <option value="3上">3工区上</option>
+              <option value="3下">3工区下</option>
+              <option value="4">4工区</option>
+              <option value="5">5工区</option>
+              <option value="6">6工区</option>
+              <option value="7">7工区</option>
             </select>
           </div>
-        </div>
 
-        <div class="row">
           <div class="field">
             <label for="grade">規格</label>
             <select id="grade" name="grade" class="choiceSelect" required>
@@ -46,21 +63,6 @@
               <option value="45センチ">45センチ</option>
               <option value="大枝">大枝</option>
             </select>
-          </div>
-          <div class="field">
-            <label for="user">入力者</label>
-            <select id="user" name="user" class="choiceSelect" required>
-              <option value="河合">河合</option>
-              <option value="担当者">担当者</option>
-            </select>
-            <label class="checkLine">
-              <input id="lockUser" type="checkbox" />
-              <span>この入力者を固定</span>
-            </label>
-            <div id="lockUserStatus" class="hint"></div>
-            <div class="mini">
-              <button class="link" id="btnRenameOther" type="button">「担当者」の名称変更</button>
-            </div>
           </div>
         </div>
 
@@ -72,31 +74,31 @@
             </div>
           </div>
           <div class="weightTool__camera">
-            <label class="cameraButton" for="ocrImage">写真を撮る</label>
-            <input id="ocrImage" class="sr-only" type="file" accept="image/*" capture="environment" />
-            <label class="cameraButton cameraButton--secondary" for="ocrImageLibrary">写真を選ぶ</label>
-            <input id="ocrImageLibrary" class="sr-only" type="file" accept="image/*" />
-            <div id="ocrStatus" class="hint">未読み取り</div>
+            <label class="ocrActionButton" for="ocrImage">写真を撮る</label>
+            <input id="ocrImage" class="ocrFileInput" type="file" accept="image/*" capture="environment" aria-label="写真を撮る" />
+            <label class="ocrActionButton ocrActionButton--secondary" for="ocrImageLibrary">写真を選ぶ</label>
+            <input id="ocrImageLibrary" class="ocrFileInput" type="file" accept="image/*" aria-label="写真を選ぶ" />
+            <div id="ocrStatus" class="hint" hidden></div>
           </div>
-          <div class="ocrPanel__preview">
+          <div class="ocrPanel__preview" hidden>
             <img id="ocrPreview" alt="OCRプレビュー" />
           </div>
-          <div class="calcTotal">
+          <div class="calcTotal" hidden>
             <div class="calcTotal__label">合計重量</div>
             <div class="calcTotal__value"><span id="calcTotalWeight">0.00</span> kg</div>
             <div class="hint">保存前に数字を確認してください</div>
           </div>
           <div class="manualWeight">
-            <label for="calcManualWeight">重量を追加</label>
+            <label for="calcManualWeight">手入力</label>
             <input id="calcManualWeight" type="number" inputmode="decimal" min="0" max="20" step="0.01" placeholder="例: 1.30" />
-            <button class="btn btn--secondary" id="btnCalcManualAdd" type="button">＋追加</button>
+            <button class="btn btn--secondary" id="btnCalcManualAdd" type="button">追加</button>
           </div>
-          <div class="ocrPanel__results">
+          <div class="ocrPanel__results" hidden>
             <div class="labelRow">
               <label>読み取り結果</label>
               <button class="btn btn--ghost btn--sm" id="btnToggleOcrDetails" type="button" aria-controls="ocrCandidates" aria-expanded="false">読み取り結果を編集</button>
             </div>
-            <div id="ocrCandidatesSummary" class="ocrCandidatesSummary">未読み取り</div>
+            <div id="ocrCandidatesSummary" class="ocrCandidatesSummary"></div>
             <div id="ocrCandidates" class="ocrCandidates" hidden></div>
           </div>
         </section>
@@ -108,9 +110,12 @@
           <div id="weights" class="weights weights--internal" aria-hidden="true"></div>
         </div>
 
-        <div class="field">
-          <label for="memo">メモ</label>
-          <textarea id="memo" name="memo" rows="2" placeholder="例: 葉が小さめ"></textarea>
+        <div class="memoFold" id="memoFold">
+          <button class="btn btn--ghost btn--sm memoFold__toggle" id="btnMemoToggle" type="button" aria-expanded="false">メモを追加</button>
+          <div class="field memoFold__body" id="memoBody" hidden>
+            <label for="memo">メモ</label>
+            <textarea id="memo" name="memo" rows="2" placeholder="例: 葉が小さめ"></textarea>
+          </div>
         </div>
 
         <section class="saveConfirm" id="saveConfirm" aria-live="polite">
@@ -149,35 +154,41 @@
     <section class="card card--danger" id="manageSection">
       <div class="card__hd">
         <h2>管理・設定</h2>
-        <div class="hint">必要なときだけ開いてください</div>
-      </div>
-      <div class="manageLaunchers">
-        <button class="btn btn--ghost" id="btnSearchToggle" type="button">ログを探す</button>
-        <button class="btn" id="btnManageToggle" type="button">管理</button>
-      </div>
-      <div id="status" class="statusInfo">データ状況</div>
-      <div id="searchPanel" class="toolbarPanel toolbarPanel--search" hidden>
-        <div class="field">
-          <label for="month">月</label>
-          <input id="month" type="month" />
-        </div>
-        <div class="field">
-          <label for="q">検索</label>
-          <input id="q" type="search" placeholder="圃場・規格・入力者・メモで検索" />
-        </div>
+        <button class="btn btn--ghost btn--sm" id="btnManageToggle" type="button" aria-expanded="false">管理を開く</button>
       </div>
       <div id="managePanel" class="toolbarPanel toolbarPanel--menu" hidden>
-        <button class="btn" id="btnFetch" type="button">最新データを読み込む</button>
-        <button class="btn" id="btnExportCsv" type="button">Excel用に出力</button>
-        <button class="btn" id="btnExportJson" type="button">バックアップを作成</button>
-        <label class="btn btn--ghost" for="fileImport">バックアップを復元</label>
-        <button class="btn btn--danger" id="btnClearTests" type="button" disabled>テストデータ削除（一時停止中）</button>
-        <div class="hint">※アグリノート取込データを残す安全化対応中です</div>
+        <div id="status" class="statusInfo">データ状況</div>
+        <div class="manageGroup">
+          <div class="manageGroup__title">通常操作</div>
+          <div class="manageActions">
+            <button class="btn" id="btnFetch" type="button">最新データを読み込む</button>
+            <button class="btn" id="btnExportCsv" type="button">Excel用に出力</button>
+            <button class="btn" id="btnExportJson" type="button">バックアップを作成</button>
+            <label class="btn btn--ghost" for="fileImport">バックアップを復元</label>
+          </div>
+        </div>
+        <div class="manageGroup">
+          <div class="manageGroup__title">入力者設定</div>
+          <label class="checkLine checkLine--compact">
+            <input id="lockUser" type="checkbox" />
+            <span>この入力者を固定</span>
+          </label>
+        </div>
+        <div class="manageGroup">
+          <div class="manageGroup__title">規格設定</div>
+          <div class="gradeSettings">
+            <input id="newGradeName" type="text" placeholder="新しい規格名を入力" />
+            <button class="btn btn--secondary" id="btnAddGrade" type="button">規格を追加</button>
+          </div>
+          <div id="gradeSettingsList" class="gradeSettingsList" aria-label="現在の規格"></div>
+        </div>
+        <div class="dangerZone">
+          <div class="dangerZone__title">危険操作</div>
+          <button class="btn btn--danger" id="btnClearTests" type="button" disabled>テストデータ削除（一時停止中）</button>
+          <button class="btn btn--danger" id="btnClear" type="button">端末内データをすべて削除</button>
+          <div class="hint">※削除操作は既存の確認手順を維持しています</div>
+        </div>
         <input id="fileImport" class="sr-only" type="file" accept="application/json" />
-      </div>
-      <div class="dangerZone">
-        <div class="dangerZone__title">危険な操作</div>
-        <button class="btn btn--danger" id="btnClear" type="button">端末内データをすべて削除</button>
       </div>
     </section>
   </main>
@@ -198,14 +209,14 @@
           <div class="field">
             <label for="eField">圃場</label>
             <select id="eField" name="field" class="choiceSelect" required>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3上">3上</option>
-              <option value="3下">3下</option>
-              <option value="4">4</option>
-              <option value="5">5</option>
-              <option value="6">6</option>
-              <option value="7">7</option>
+              <option value="1">1工区</option>
+              <option value="2">2工区</option>
+              <option value="3上">3工区上</option>
+              <option value="3下">3工区下</option>
+              <option value="4">4工区</option>
+              <option value="5">5工区</option>
+              <option value="6">6工区</option>
+              <option value="7">7工区</option>
             </select>
           </div>
         </div>
@@ -223,7 +234,7 @@
             <label for="eUser">入力者</label>
             <select id="eUser" name="user" class="choiceSelect" required>
               <option value="河合">河合</option>
-              <option value="担当者">担当者</option>
+              <option value="長谷川">長谷川</option>
             </select>
           </div>
         </div>
