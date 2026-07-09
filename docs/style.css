@@ -821,6 +821,8 @@ input:focus,select:focus,textarea:focus{border-color:rgba(37,99,235,.65);box-sha
 .dialog__hd h3{margin:0;font-size:16px}
 .dialog__bd{padding:12px 14px 0}
 .dialog__ft{display:flex;justify-content:flex-end;gap:10px;padding:12px 14px 14px}
+.dialog--appKey .dialog__panel{width:min(460px, calc(100vw - 24px))}
+.keyActions{display:flex;flex-wrap:wrap;gap:8px}
 .iconBtn{border:1px solid rgba(15,23,42,.14);background:#fff;color:var(--text);border-radius:999px;width:36px;height:36px;cursor:pointer;font-size:18px;line-height:1;font-weight:900}
 .iconBtn:hover{border-color:rgba(37,99,235,.4)}
 

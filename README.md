@@ -71,12 +71,22 @@ Worker としての `wrangler deploy` は使わず、Pages 用のデプロイを
 npx wrangler pages secret put OPENAI_API_KEY --project-name sakaki-harvest-log
 ```
 
+共有キーは `APP_SECRET` として Cloudflare Pages の Secret 環境変数に設定します。値はコード、README、ログに記録しないでください。
+
+```bash
+npx wrangler pages secret put APP_SECRET --project-name sakaki-harvest-log
+```
+
+Cloudflare Dashboard を使う場合は、Pages プロジェクトの Settings → Variables and Secrets で `APP_SECRET` を Secret として追加し、再デプロイします。ブラウザ側の共有キー保存は `localStorage` を使う簡易保護であり、本格的なユーザー認証ではありません。
+
 ## 動作確認
 
 1. `docs/` を Cloudflare Pages にデプロイする
-2. アプリ画面で新規入力を保存する
-3. D1 にレコードが追加されることを確認する
-4. 読込・編集・削除・集計・CSV出力が動くことを確認する
+2. 初回表示で共有キー入力画面が出て、正しいキーで読込・保存・画像読取が動くことを確認する
+3. `X-App-Key` が未設定または不一致のAPIリクエストが `401` になることを確認する
+4. `APP_SECRET` 未設定時にAPIが `500` になることを確認する
+5. 管理・設定から保存済みキーの変更・削除ができることを確認する
+6. D1への追加と、読込・編集・削除・集計・CSV/JSON出力が従来どおり動くことを確認する
 
 ## 変更に関するメモ
 

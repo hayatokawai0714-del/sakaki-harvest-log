@@ -11,6 +11,7 @@
 
   const STORAGE_KEY = "sakakiHarvestLog.v2";
   const SETTINGS_KEY = "sakakiHarvestLog.settings.v1";
+  const APP_KEY_STORAGE_KEY = "sakakiHarvestLog.appKey.v1";
   const DEFAULT_GRADES = ["40センチ", "45センチ", "大枝"];
   const USER_OPTIONS = ["河合", "長谷川"];
 
@@ -90,6 +91,12 @@
   const settingsForm = /** @type {HTMLFormElement} */ ($("#settingsForm"));
   const endpointEl = /** @type {HTMLInputElement} */ ($("#endpoint"));
   const btnSettings = $("#btnSettings");
+  const btnChangeAppKey = $("#btnChangeAppKey");
+  const btnDeleteAppKey = $("#btnDeleteAppKey");
+  const dlgAppKey = /** @type {HTMLDialogElement} */ ($("#dlgAppKey"));
+  const appKeyForm = /** @type {HTMLFormElement} */ ($("#appKeyForm"));
+  const appKeyEl = /** @type {HTMLInputElement} */ ($("#appKey"));
+  const btnCancelAppKey = $("#btnCancelAppKey");
 
   /** @type {Entry[]} */
   let entries = [];
@@ -453,7 +460,7 @@
   }
 
   async function readWeightsFromApi(imageDataUrl) {
-    const response = await fetch("/api/read-weights", {
+    const response = await fetchWithAppKey("/api/read-weights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: imageDataUrl }),
@@ -469,6 +476,8 @@
   }
 
   function formatOcrApiError(response, body) {
+    if (body?.code === "unauthorized") return "共有キーが一致しません";
+    if (body?.code === "missing_app_secret") return "サーバー側の共有キー設定が未完了です";
     const openai = body?.openai || {};
     const status = openai.status || body?.status || response.status;
     const code = openai.code || body?.code || "";
@@ -701,6 +710,66 @@
     };
   }
 
+  function getAppKey() {
+    return localStorage.getItem(APP_KEY_STORAGE_KEY) || "";
+  }
+
+  function promptForAppKey(allowCancel = false) {
+    appKeyEl.value = "";
+    appKeyEl.setCustomValidity("");
+    btnCancelAppKey.hidden = !allowCancel;
+    dlgAppKey.showModal();
+    window.setTimeout(() => appKeyEl.focus(), 0);
+
+    return new Promise((resolve) => {
+      const finish = (value) => {
+        appKeyForm.removeEventListener("submit", onSubmit);
+        appKeyEl.removeEventListener("input", onInput);
+        btnCancelAppKey.removeEventListener("click", onCancel);
+        dlgAppKey.removeEventListener("cancel", onDialogCancel);
+        if (dlgAppKey.open) dlgAppKey.close();
+        resolve(value);
+      };
+      const onSubmit = (event) => {
+        event.preventDefault();
+        const value = appKeyEl.value;
+        if (!value.trim()) {
+          appKeyEl.setCustomValidity("共有キーを入力してください");
+          appKeyEl.reportValidity();
+          return;
+        }
+        localStorage.setItem(APP_KEY_STORAGE_KEY, value);
+        finish(value);
+      };
+      const onCancel = () => finish(null);
+      const onInput = () => appKeyEl.setCustomValidity("");
+      const onDialogCancel = (event) => {
+        event.preventDefault();
+        if (allowCancel) finish(null);
+      };
+      appKeyForm.addEventListener("submit", onSubmit);
+      appKeyEl.addEventListener("input", onInput);
+      btnCancelAppKey.addEventListener("click", onCancel);
+      dlgAppKey.addEventListener("cancel", onDialogCancel);
+    });
+  }
+
+  async function fetchWithAppKey(input, init = {}, retryUnauthorized = true) {
+    let appKey = getAppKey();
+    if (!appKey) appKey = await promptForAppKey(false);
+
+    const headers = new Headers(init.headers || {});
+    headers.set("X-App-Key", appKey);
+    const response = await fetch(input, { ...init, headers });
+
+    if (response.status === 401 && retryUnauthorized) {
+      localStorage.removeItem(APP_KEY_STORAGE_KEY);
+      await promptForAppKey(false);
+      return fetchWithAppKey(input, init, false);
+    }
+    return response;
+  }
+
   function saveSettings(s) {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({
       endpoint: String(s.endpoint || ""),
@@ -927,7 +996,7 @@
 
   async function requestBackend(path, options = {}) {
     const { headers = {}, ...rest } = options;
-    const response = await fetch(path, {
+    const response = await fetchWithAppKey(path, {
       ...rest,
       headers: { "Content-Type": "application/json", ...headers },
     });
@@ -2647,6 +2716,15 @@
     });
 
     btnSettings.addEventListener("click", openSettings);
+    btnChangeAppKey.addEventListener("click", async () => {
+      const value = await promptForAppKey(true);
+      if (value) toast("ok", "共有キーを変更しました");
+    });
+    btnDeleteAppKey.addEventListener("click", () => {
+      if (!confirm("この端末に保存した共有キーを削除しますか？")) return;
+      localStorage.removeItem(APP_KEY_STORAGE_KEY);
+      toast("ok", "共有キーを削除しました");
+    });
     document.addEventListener("click", (ev) => {
       const target = /** @type {HTMLElement | null} */ (ev.target);
       const manageBtn = target?.closest("#btnManageToggle");

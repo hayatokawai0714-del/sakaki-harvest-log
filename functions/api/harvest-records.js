@@ -1,10 +1,39 @@
-import { corsOptions, insertRecord, json, listRecords } from "../_lib/harvest.js";
+import { insertRecord, listRecords } from "../_lib/harvest.js";
+
+const APP_ORIGIN = "https://sakaki-harvest-log.pages.dev";
+const JSON_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "access-control-allow-origin": APP_ORIGIN,
+  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-headers": "content-type, x-app-key",
+};
+
+function json(data, init = {}) {
+  return new Response(JSON.stringify(data), {
+    ...init,
+    headers: { ...JSON_HEADERS, ...(init.headers || {}) },
+  });
+}
+
+function authorize(request, env) {
+  if (!env.APP_SECRET) {
+    return json({ ok: false, code: "missing_app_secret", error: "APP_SECRET is not configured." }, { status: 500 });
+  }
+  if (request.headers.get("X-App-Key") !== env.APP_SECRET) {
+    return json({ ok: false, code: "unauthorized", error: "Unauthorized." }, { status: 401 });
+  }
+  return null;
+}
 
 export async function onRequest(context) {
   const { request, env } = context;
 
   try {
-    if (request.method === "OPTIONS") return corsOptions();
+    if (!env.APP_SECRET) return authorize(request, env);
+    if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: JSON_HEADERS });
+
+    const authError = authorize(request, env);
+    if (authError) return authError;
 
     if (request.method === "GET") {
       const url = new URL(request.url);

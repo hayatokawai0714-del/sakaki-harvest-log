@@ -182,6 +182,13 @@
           </div>
           <div id="gradeSettingsList" class="gradeSettingsList" aria-label="現在の規格"></div>
         </div>
+        <div class="manageGroup">
+          <div class="manageGroup__title">共有キー</div>
+          <div class="keyActions">
+            <button class="btn btn--ghost btn--sm" id="btnChangeAppKey" type="button">保存済みキーを変更</button>
+            <button class="btn btn--ghost btn--sm" id="btnDeleteAppKey" type="button">保存済みキーを削除</button>
+          </div>
+        </div>
         <div class="dangerZone">
           <div class="dangerZone__title">危険操作</div>
           <button class="btn btn--danger" id="btnClearTests" type="button" disabled>テストデータ削除（一時停止中）</button>
@@ -260,6 +267,25 @@
       <div class="dialog__ft">
         <button class="btn" value="cancel" type="submit">キャンセル</button>
         <button class="btn btn--primary" id="btnEditSave" value="ok" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlgAppKey" class="dialog dialog--appKey">
+    <form class="dialog__panel" id="appKeyForm">
+      <div class="dialog__hd">
+        <h3>共有キーを入力</h3>
+      </div>
+      <div class="dialog__bd">
+        <div class="field">
+          <label for="appKey">共有キー</label>
+          <input id="appKey" type="password" autocomplete="current-password" required />
+          <div class="hint">管理者から案内された共有キーを入力してください。この端末内に保存されます。</div>
+        </div>
+      </div>
+      <div class="dialog__ft">
+        <button class="btn" id="btnCancelAppKey" type="button" hidden>キャンセル</button>
+        <button class="btn btn--primary" type="submit">保存</button>
       </div>
     </form>
   </dialog>

@@ -1,9 +1,9 @@
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024;
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
-  "access-control-allow-origin": "*",
+  "access-control-allow-origin": "https://sakaki-harvest-log.pages.dev",
   "access-control-allow-methods": "POST, OPTIONS",
-  "access-control-allow-headers": "content-type",
+  "access-control-allow-headers": "content-type, x-app-key",
 };
 
 function json(data, init = {}) {
@@ -11,6 +11,16 @@ function json(data, init = {}) {
     ...init,
     headers: { ...JSON_HEADERS, ...(init.headers || {}) },
   });
+}
+
+function authorize(request, env) {
+  if (!env.APP_SECRET) {
+    return json({ ok: false, code: "missing_app_secret", error: "APP_SECRET is not configured." }, { status: 500 });
+  }
+  if (request.headers.get("X-App-Key") !== env.APP_SECRET) {
+    return json({ ok: false, code: "unauthorized", error: "Unauthorized." }, { status: 401 });
+  }
+  return null;
 }
 
 function estimateBase64Bytes(dataUrl) {
@@ -87,7 +97,12 @@ function openAiErrorResponse(openaiResponse, responseText, parsedResponse) {
 }
 
 export async function onRequest({ request, env }) {
+  if (!env.APP_SECRET) return authorize(request, env);
   if (request.method === "OPTIONS") return new Response(null, { headers: JSON_HEADERS });
+
+  const authError = authorize(request, env);
+  if (authError) return authError;
+
   if (request.method !== "POST") {
     return json({ ok: false, code: "method_not_allowed", error: "Send an image with POST.", status: 405 }, { status: 405 });
   }
