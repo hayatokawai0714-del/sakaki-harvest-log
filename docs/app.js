@@ -767,8 +767,9 @@
     headers.set("X-App-Key", appKey);
     const response = await fetch(input, { ...init, headers });
 
-    if (response.status === 401 && retryUnauthorized) {
+    if (response.status === 401) {
       localStorage.removeItem(APP_KEY_STORAGE_KEY);
+      if (!retryUnauthorized) return response;
       await promptForAppKey(false);
       return fetchWithAppKey(input, init, false);
     }
