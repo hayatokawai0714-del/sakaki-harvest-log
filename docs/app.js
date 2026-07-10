@@ -710,7 +710,13 @@
   }
 
   function getAppKey() {
-    return localStorage.getItem(APP_KEY_STORAGE_KEY) || "";
+    const raw = localStorage.getItem(APP_KEY_STORAGE_KEY) || "";
+    const value = raw.trim();
+    if (raw && raw !== value) {
+      if (value) localStorage.setItem(APP_KEY_STORAGE_KEY, value);
+      else localStorage.removeItem(APP_KEY_STORAGE_KEY);
+    }
+    return value;
   }
 
   function promptForAppKey(allowCancel = false) {
@@ -731,8 +737,8 @@
       };
       const onSubmit = (event) => {
         event.preventDefault();
-        const value = appKeyEl.value;
-        if (!value.trim()) {
+        const value = appKeyEl.value.trim();
+        if (!value) {
           appKeyEl.setCustomValidity("共有キーを入力してください");
           appKeyEl.reportValidity();
           return;
