@@ -1468,6 +1468,14 @@
     return `${Number(match[2])}月${Number(match[3])}日`;
   }
 
+  function formatDateWeekday(dateValue) {
+    const value = String(dateValue || "");
+    const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    const day = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]))).getUTCDay();
+    return "日月火水木金土"[day] || "";
+  }
+
   function formatDateMonthDay(dateValue) {
     return formatDateShortMonthDay(dateValue);
   }
@@ -1571,10 +1579,17 @@
     return String(grade || "(未設定)");
   }
 
-  function getFieldBadgeClass(field) {
+  function getFieldColorKey(field) {
     const raw = String(field || "").trim().replace(/工区$/, "");
-    const key = raw === "3上" ? "3上" : raw === "3下" ? "3下" : raw || "na";
-    return `item__badge--field item__badge--field-${key}`;
+    return raw === "3上" ? "3上" : raw === "3下" ? "3下" : raw || "na";
+  }
+
+  function getFieldBadgeClass(field) {
+    return `item__badge--field item__badge--field-${getFieldColorKey(field)}`;
+  }
+
+  function getFieldCardClass(field) {
+    return `item--field-${getFieldColorKey(field)}`;
   }
 
   function getGradeBadgeClass(grade) {
@@ -1840,29 +1855,33 @@
 
     for (const e of visibleList) {
       const item = document.createElement("div");
-      item.className = `item ${String(e.id) === recentlySavedId ? "item--saved" : ""}`;
+      item.className = `item ${getFieldCardClass(e.field)} ${String(e.id) === recentlySavedId ? "item--saved" : ""}`;
       const fieldName = formatFieldName(e.field);
       const memoText = String(e.memo || "").trim();
       const totalWeight = fmtWeightOne(Number(e.total_weight) || 0);
       const dateText = escapeHtml(formatDateShortMonthDay(e.date) || formatDateJapanese(e.date));
+      const weekdayText = escapeHtml(formatDateWeekday(e.date));
       item.innerHTML = `
         <div class="item__layout">
+          <div class="item__when">
+            <time class="item__date" datetime="${escapeAttr(e.date)}">${dateText}</time>
+            ${weekdayText ? `<span class="item__weekday">${weekdayText}曜日</span>` : ""}
+          </div>
           <div class="item__body">
-            <div class="item__head">
-              <span class="item__date">${dateText}</span>
+            <div class="item__primary">
               <span class="item__field item__pill item__pill--field ${getFieldBadgeClass(e.field)}">${escapeHtml(fieldName)}</span>
+              <div class="item__weight"><span class="item__weightValue">${escapeHtml(totalWeight)}</span><span class="item__weightUnit">kg</span></div>
             </div>
-            <div class="item__weight">${escapeHtml(totalWeight)}kg</div>
             <div class="item__sub">
               <span class="item__tag item__tag--grade">${escapeHtml(formatGradeBadge(e.grade))}</span>
               <span class="item__tag item__tag--user">${escapeHtml(e.user || "-")}</span>
             </div>
-            ${memoText ? `<div class="item__memo">📝 ${escapeHtml(memoText)}</div>` : ""}
+            ${memoText ? `<div class="item__memo">${escapeHtml(memoText)}</div>` : ""}
           </div>
           <div class="item__actions">
-          <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>編集</button>
-          <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>削除</button>
-        </div>
+            <button class="btn" type="button" data-act="edit" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>編集</button>
+            <button class="btn btn--danger" type="button" data-act="del" data-id="${escapeAttr(e.id)}" ${demoMode ? "disabled" : ""}>削除</button>
+          </div>
         </div>
       `;
       frag.appendChild(item);
