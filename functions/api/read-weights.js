@@ -1,3 +1,5 @@
+import { authenticateRequest } from "../_lib/auth.js";
+
 const MAX_IMAGE_BYTES = 7 * 1024 * 1024;
 const JSON_HEADERS = {
   "content-type": "application/json; charset=utf-8",
@@ -13,14 +15,8 @@ function json(data, init = {}) {
   });
 }
 
-function authorize(request, env) {
-  if (!env.APP_SECRET) {
-    return json({ ok: false, code: "missing_app_secret", error: "APP_SECRET is not configured." }, { status: 500 });
-  }
-  if (request.headers.get("X-App-Key") !== env.APP_SECRET) {
-    return json({ ok: false, code: "unauthorized", error: "Unauthorized." }, { status: 401 });
-  }
-  return null;
+function authErrorResponse(authError) {
+  return json(authError.body, { status: authError.status });
 }
 
 function estimateBase64Bytes(dataUrl) {
@@ -97,11 +93,11 @@ function openAiErrorResponse(openaiResponse, responseText, parsedResponse) {
 }
 
 export async function onRequest({ request, env }) {
-  if (!env.APP_SECRET) return authorize(request, env);
+  if (!env.APP_SECRET) return authErrorResponse(await authenticateRequest(request, env));
   if (request.method === "OPTIONS") return new Response(null, { headers: JSON_HEADERS });
 
-  const authError = authorize(request, env);
-  if (authError) return authError;
+  const authError = await authenticateRequest(request, env);
+  if (authError) return authErrorResponse(authError);
 
   if (request.method !== "POST") {
     return json({ ok: false, code: "method_not_allowed", error: "Send an image with POST.", status: 405 }, { status: 405 });

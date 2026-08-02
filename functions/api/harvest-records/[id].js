@@ -1,10 +1,15 @@
 import { corsOptions, deleteRecord, json, updateRecord } from "../../_lib/harvest.js";
+import { authenticateRequest } from "../../_lib/auth.js";
 
 export async function onRequest(context) {
   const { request, env, params } = context;
   const id = String(params.id || "");
 
   if (request.method === "OPTIONS") return corsOptions();
+  if (request.method === "PUT" || request.method === "DELETE") {
+    const authError = await authenticateRequest(request, env);
+    if (authError) return json(authError.body, { status: authError.status });
+  }
   if (!id) return json({ ok: false, error: "id is required" }, { status: 400 });
 
   if (request.method === "PUT") {
