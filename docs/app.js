@@ -302,7 +302,7 @@
     const raw = String(value ?? "").trim().replace(/,/g, ".");
     if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return "";
     const num = Number(raw);
-    if (!Number.isFinite(num) || num <= 0 || num >= 20) return "";
+    if (!Number.isFinite(num) || num <= 0) return "";
     return fmtWeight(num);
   }
 
@@ -537,7 +537,7 @@
       const row = document.createElement("div");
       row.className = "ocrCandidate";
       row.innerHTML = `
-        <input type="number" inputmode="decimal" min="0" max="20" step="0.01" value="${escapeHtml(value)}" aria-label="重量${index + 1}" />
+        <input type="number" inputmode="decimal" min="0" step="0.01" value="${escapeHtml(value)}" aria-label="重量${index + 1}" />
         <button class="btn btn--danger ocrCandidate__del" type="button">削除</button>
       `;
       const input = /** @type {HTMLInputElement} */ (row.querySelector("input"));
@@ -583,7 +583,7 @@
     return ocrCandidateDetails
       .map((item) => item.corrected || postCorrectOcrValue(item.rawText))
       .map(Number)
-      .filter((value) => Number.isFinite(value) && value > 0 && value < 20);
+      .filter((value) => Number.isFinite(value) && value > 0);
   }
 
   function updateCalcTotal() {
@@ -616,11 +616,11 @@
         confidence: 0,
         valid: true,
       }));
-    setCalcCandidates(items, "replace");
+    setCalcCandidates(items, "replace", (value) => Boolean(normalizeManualWeight(value)));
   }
 
-  function setCalcCandidates(items, mode = "replace") {
-    const nextItems = Array.isArray(items) ? items.filter((item) => item?.corrected && validateWeightRange(item.corrected)) : [];
+  function setCalcCandidates(items, mode = "replace", validator = validateWeightRange) {
+    const nextItems = Array.isArray(items) ? items.filter((item) => item?.corrected && validator(item.corrected)) : [];
     ocrCandidateDetails = mode === "append" ? [...ocrCandidateDetails, ...nextItems] : nextItems;
     renderOcrCandidates(ocrCandidateDetails.map((item) => item.corrected));
   }
@@ -638,7 +638,7 @@
         confidence: 0,
         valid: true,
       },
-    ], "append");
+    ], "append", (value) => Boolean(normalizeManualWeight(value)));
     calcManualWeightEl.value = "";
     calcManualWeightEl.focus();
   }
