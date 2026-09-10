@@ -298,6 +298,14 @@
     return fmtWeight(Number(fixed));
   }
 
+  function normalizeManualWeight(value) {
+    const raw = String(value ?? "").trim().replace(/,/g, ".");
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return "";
+    const num = Number(raw);
+    if (!Number.isFinite(num) || num <= 0 || num >= 20) return "";
+    return fmtWeight(num);
+  }
+
   function postCorrectOcrValue(value) {
     const raw = String(value || "").trim().replace(/,/g, ".").replace(/[^\d.]/g, "");
     if (!raw) return "";
@@ -600,7 +608,7 @@
 
   function syncCalcFromWeights(values) {
     const items = (Array.isArray(values) ? values : [])
-      .map((value) => normalizeOcrCandidate(value))
+      .map((value) => normalizeManualWeight(value))
       .filter(Boolean)
       .map((value) => ({
         rawText: value,
@@ -618,7 +626,7 @@
   }
 
   function addManualCalcWeight() {
-    const corrected = normalizeOcrCandidate(calcManualWeightEl.value);
+    const corrected = normalizeManualWeight(calcManualWeightEl.value);
     if (!corrected) {
       toast("warn", "0より大きく20kg未満の重量を入力してください");
       return;
