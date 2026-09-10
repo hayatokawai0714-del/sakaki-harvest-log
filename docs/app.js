@@ -293,7 +293,7 @@
     const raw = String(value || "").trim().replace(/,/g, ".");
     if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(raw)) return "";
     const num = Number(raw);
-    if (!Number.isFinite(num) || num <= 0 || num >= 20) return "";
+    if (!Number.isFinite(num) || num < 0 || num > 10) return "";
     const fixed = raw.includes(".") ? raw : `${raw}.0`;
     return fmtWeight(Number(fixed));
   }
@@ -326,14 +326,14 @@
 
   function validateWeightRange(value) {
     const num = Number(value);
-    return Number.isFinite(num) && num > 0 && num < 20;
+    return Number.isFinite(num) && num >= 0 && num <= 10;
   }
 
   function normalizeApiWeightCandidate(value) {
     const raw = String(value || "").trim().replace(/,/g, ".");
-    if (!/^\d(?:\.\d{1,2})?$/.test(raw)) return "";
+    if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(raw)) return "";
     const num = Number(raw);
-    if (!Number.isFinite(num) || num <= 5 || num > 9.99) return "";
+    if (!Number.isFinite(num) || num < 0 || num > 10) return "";
     return num.toFixed(2).replace(/\.00$/, "");
   }
 

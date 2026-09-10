@@ -26,9 +26,9 @@ function estimateBase64Bytes(dataUrl) {
 
 function sanitizeWeight(value) {
   const raw = String(value ?? "").trim().replace(",", ".");
-  if (!/^\d(?:\.\d{1,2})?$/.test(raw)) return null;
+  if (!/^\d{1,2}(?:\.\d{1,2})?$/.test(raw)) return null;
   const number = Number(raw);
-  if (!Number.isFinite(number) || number <= 5 || number > 9.99) return null;
+  if (!Number.isFinite(number) || number < 0 || number > 10) return null;
   return Math.round(number * 100) / 100;
 }
 
@@ -131,11 +131,11 @@ export async function onRequest({ request, env }) {
     const prompt = [
       "Read only harvest weight numbers from a handwritten whiteboard photo.",
       "The weights are written vertically. Treat one visible line as one kg weight.",
-      "Return only numbers that look like kg weights greater than 5 and up to 9.99.",
-      "Exclude impossible values such as 12, 444, 4.4.4, 0, and values >= 10.",
+      "Return only numbers that look like kg weights from 0 to 10.0.",
+      "Exclude impossible values such as 12, 444, 4.4.4, and values > 10.",
       "Do not remove duplicates because the same weight can appear on multiple bundles.",
       "Return JSON only with this shape:",
-      '{"ok":true,"weights":[5.3,6.02,9.52],"rawText":"recognized text","warnings":[]}',
+      '{"ok":true,"weights":[1.3,5.02,9.52,10.0],"rawText":"recognized text","warnings":[]}',
     ].join("\n");
 
     const openaiResponse = await fetch("https://api.openai.com/v1/responses", {
