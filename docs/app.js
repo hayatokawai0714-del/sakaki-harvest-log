@@ -325,7 +325,7 @@
     const raw = String(value || "").trim().replace(/,/g, ".");
     if (!/^\d(?:\.\d{1,2})?$/.test(raw)) return "";
     const num = Number(raw);
-    if (!Number.isFinite(num) || num < 0.1 || num > 9.99) return "";
+    if (!Number.isFinite(num) || num <= 5 || num > 9.99) return "";
     return num.toFixed(2).replace(/\.00$/, "");
   }
 
